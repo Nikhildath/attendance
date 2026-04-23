@@ -1,4 +1,5 @@
 services:
+<<<<<<< HEAD
   # =========================
   # Backend API (Web Service)
   # =========================
@@ -21,3 +22,13 @@ services:
     rootDir: client
     buildCommand: npm install && npm run build
     staticPublishPath: dist
+=======
+  - type: web
+    name: attendance-hub
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+>>>>>>> 40a77b3 (update project)

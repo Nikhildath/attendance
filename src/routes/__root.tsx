@@ -1,5 +1,5 @@
 import { Outlet, createRootRoute, HeadContent, Scripts, Link, useLocation, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import appCss from "../styles.css?url";
 import { ThemeProvider } from "@/lib/theme";
 import { AppShell } from "@/components/common/AppShell";
@@ -40,10 +40,11 @@ export const Route = createRootRoute({
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <head><HeadContent /></head>
-      <body>{children}<Scripts /></body>
-    </html>
+    <React.Fragment>
+      <HeadContent />
+      {children}
+      <Scripts />
+    </React.Fragment>
   );
 }
 function RootComponent() {
