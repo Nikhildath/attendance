@@ -1,0 +1,95 @@
+import { Outlet, createRootRoute, HeadContent, Scripts, Link, useLocation, useRouter } from "@tanstack/react-router";
+import { useEffect } from "react";
+import appCss from "../styles.css?url";
+import { ThemeProvider } from "@/lib/theme";
+import { AppShell } from "@/components/common/AppShell";
+import { BranchProvider } from "@/lib/branch-context";
+import { AuthProvider, useAuth } from "@/lib/auth";
+import { Toaster } from "@/components/ui/sonner";
+import { SettingsProvider } from "@/lib/settings-context";
+
+function NotFoundComponent() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-7xl font-bold text-foreground">404</h1>
+        <h2 className="mt-4 text-xl font-semibold">Page not found</h2>
+        <p className="mt-2 text-sm text-muted-foreground">The page you're looking for doesn't exist.</p>
+        <Link to="/" className="mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
+          Go home
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+export const Route = createRootRoute({
+  head: () => ({
+    meta: [
+      { charSet: "utf-8" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { title: "Attendly — Workforce Attendance Platform" },
+      { name: "description", content: "Modern attendance management with calendar, leaves, reports and team views." },
+    ],
+    links: [{ rel: "stylesheet", href: appCss }],
+  }),
+  shellComponent: RootShell,
+  component: RootComponent,
+  notFoundComponent: NotFoundComponent,
+});
+
+function RootShell({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head><HeadContent /></head>
+      <body>{children}<Scripts /></body>
+    </html>
+  );
+}
+function RootComponent() {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <SettingsProvider>
+          <RootContent />
+          <Toaster />
+        </SettingsProvider>
+      </AuthProvider>
+    </ThemeProvider>
+  );
+}
+
+function RootContent() {
+  const location = useLocation();
+  const router = useRouter();
+  const { user, profile, loading } = useAuth();
+  const hideShell = location.pathname === "/login";
+
+  useEffect(() => {
+    if (loading) return;
+    const isAuthenticated = user || profile;
+    if (!isAuthenticated && location.pathname !== "/login") {
+      router.navigate({ to: "/login" });
+    }
+    if (isAuthenticated && location.pathname === "/login") {
+      router.navigate({ to: "/" });
+    }
+  }, [loading, user, profile, location.pathname, router]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="rounded-3xl border bg-card p-8 shadow-card text-center">
+          <div className="mb-4 text-sm text-muted-foreground">Loading Attendly...</div>
+          <div className="h-3 w-36 animate-pulse rounded-full bg-muted/70" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <BranchProvider>
+      {hideShell ? <Outlet /> : <AppShell><Outlet /></AppShell>}
+    </BranchProvider>
+  );
+}
