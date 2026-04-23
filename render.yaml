@@ -1,0 +1,23 @@
+services:
+  # =========================
+  # Backend API (Web Service)
+  # =========================
+  - type: web
+    name: my-backend
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+  # =========================
+  # Frontend (Static Site)
+  # =========================
+  - type: web
+    name: my-frontend
+    runtime: static
+    rootDir: client
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
