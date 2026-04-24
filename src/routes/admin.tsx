@@ -40,7 +40,7 @@ type Role = "Employee" | "Manager" | "Admin";
 function AdminPage() {
   const { profile } = useAuth();
   const { settings, refresh: refreshSettings } = useSettings();
-  const { all: allBranches, setCurrent: setGlobalBranch } = useBranch();
+  const { all: allBranches, setCurrent: setGlobalBranch, refresh: refreshBranches } = useBranch();
   
   const [users, setUsers] = useState<Profile[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -81,12 +81,14 @@ function AdminPage() {
     const user = users.find(u => u.id === id);
     if (!user) return;
     const { error } = await supabase.rpc('admin_update_profile', {
+      caller_id: profile?.id,
       p_id: id,
+      p_name: updates.name || user.name,
       p_role: updates.role || user.role,
       p_dept: updates.dept || user.dept || "",
       p_password: updates.password || user.password || "",
       p_face: updates.face_registered ?? user.face_registered ?? false,
-      caller_id: profile?.id
+      p_branch_id: updates.branch_id === undefined ? user.branch_id : updates.branch_id
     });
     if (!error) {
       toast.success("User updated");
@@ -126,20 +128,72 @@ function AdminPage() {
   // --- Branch Actions ---
   const handleAddBranch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from("branches").insert([newBranch]);
+    if (!newBranch.name || !newBranch.city || !newBranch.country) {
+      toast.error("Please fill all required fields");
+      return;
+    }
+    toast.loading("Adding branch...", { id: "branch" });
+    const { error } = await supabase.from("branches").insert([{
+      ...newBranch,
+      id: crypto.randomUUID()
+    }]);
     if (!error) {
-      toast.success("Branch added");
+      toast.success("Branch added", { id: "branch" });
       setIsBranchOpen(false);
+      setNewBranch({ name: "", city: "", country: "India", radius_meters: 150 });
+      await refreshBranches();
       loadData();
-    } else toast.error(error.message);
+    } else {
+      toast.error(error.message || "Failed to add branch", { id: "branch" });
+    }
   };
 
   const removeBranch = async (id: string) => {
-    if (!confirm("Delete this branch?")) return;
-    const { error } = await supabase.from("branches").delete().eq("id", id);
-    if (!error) {
-      toast.success("Branch removed");
+    if (!confirm("Delete this branch? This action cannot be undone.")) return;
+    
+    console.log("🗑️ Deleting branch:", id);
+    console.log("👤 Current user:", profile?.id, "Role:", profile?.role);
+    
+    if (!profile?.id) {
+      toast.error("❌ Not authenticated", { id: "branch-delete" });
+      console.error("Not authenticated");
+      return;
+    }
+    
+    if (profile.role !== "Admin") {
+      toast.error(`❌ Only admins can delete branches. Your role: ${profile.role}`, { id: "branch-delete" });
+      console.error("User is not admin:", profile.role);
+      return;
+    }
+    
+    toast.loading("Deleting branch...", { id: "branch-delete" });
+    
+    try {
+      console.log("📤 Sending delete request to Supabase...");
+      
+      // First try direct delete
+      const { data, error } = await supabase
+        .from("branches")
+        .delete()
+        .eq("id", id)
+        .select();
+      
+      console.log("📥 Response:", { data, error });
+      
+      if (error) {
+        console.error("❌ Delete error:", error);
+        const errorMsg = error.message || error.details || "Unknown error";
+        toast.error(`Failed to delete: ${errorMsg}`, { id: "branch-delete" });
+        return;
+      }
+      
+      console.log("✅ Delete successful");
+      toast.success("✅ Branch removed", { id: "branch-delete" });
       setBranches(prev => prev.filter(b => b.id !== id));
+      await refreshBranches();
+    } catch (err) {
+      console.error("❌ Delete exception:", err);
+      toast.error(`Error: ${err instanceof Error ? err.message : "Unknown error"}`, { id: "branch-delete" });
     }
   };
 
@@ -246,21 +300,56 @@ function AdminPage() {
                     <th className="px-5 py-3">Email</th>
                     <th className="px-5 py-3 text-center">Password</th>
                     <th className="px-5 py-3">Role</th>
+                    <th className="px-5 py-3">Branch</th>
+                    <th className="px-5 py-3">Dept</th>
                     <th className="px-5 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.filter(u => u.name?.toLowerCase().includes(q.toLowerCase())).map(u => (
                     <tr key={u.id} className="border-t hover:bg-accent/30">
-                      <td className="px-5 py-3 flex items-center gap-3"><Avatar2D name={u.name} size={32} /> {u.name}</td>
+                      <td className="px-5 py-3 flex items-center gap-3">
+                        <Avatar2D name={u.name} size={32} /> 
+                        <Input 
+                          className="h-8 w-32 text-xs" 
+                          value={u.name} 
+                          onChange={e => updateProfile(u.id, { name: e.target.value })} 
+                        />
+                      </td>
                       <td className="px-5 py-3 text-muted-foreground">{u.email}</td>
-                      <td className="px-5 py-3 text-center"><Input className="h-8 w-24 mx-auto text-xs" value={u.password || ""} onChange={e => updateProfile(u.id, { password: e.target.value })} /></td>
+                      <td className="px-5 py-3 text-center">
+                        <Input 
+                          className="h-8 w-24 mx-auto text-xs" 
+                          value={u.password || ""} 
+                          onChange={e => updateProfile(u.id, { password: e.target.value })} 
+                        />
+                      </td>
                       <td className="px-5 py-3">
                         <select className="h-8 rounded border bg-background px-2 text-xs" value={u.role} onChange={e => updateProfile(u.id, { role: e.target.value as Role })}>
                           <option value="Employee">Employee</option>
                           <option value="Manager">Manager</option>
                           <option value="Admin">Admin</option>
                         </select>
+                      </td>
+                      <td className="px-5 py-3">
+                        <select 
+                          className="h-8 rounded border bg-background px-2 text-xs w-32" 
+                          value={u.branch_id || ""} 
+                          onChange={e => updateProfile(u.id, { branch_id: e.target.value || null })}
+                        >
+                          <option value="">No Branch</option>
+                          {branches.map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-5 py-3">
+                        <Input 
+                          className="h-8 w-24 text-xs" 
+                          value={u.dept || ""} 
+                          onChange={e => updateProfile(u.id, { dept: e.target.value })}
+                          placeholder="Dept"
+                        />
                       </td>
                       <td className="px-5 py-3 text-right"><Button variant="ghost" size="icon" onClick={() => removeUser(u.id)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button></td>
                     </tr>

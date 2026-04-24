@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { exportToCSV } from "@/lib/csv-utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { Camera, CheckCircle2, Loader2, MapPin, Clock, ShieldCheck, AlertTriangle, ScanFace, PartyPopper } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -42,7 +43,7 @@ function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: 
 
 function AttendancePage() {
   const { current, loading: branchLoading } = useBranch();
-  const { profile } = useAuth();
+  const { profile, refreshProfile, user } = useAuth();
   const [state, setState] = useState<State>("idle");
   const [now, setNow] = useState<string>("");
   const [markedAt, setMarkedAt] = useState<string>("");
@@ -52,6 +53,7 @@ function AttendancePage() {
   const [punchMode, setPunchMode] = useState<"web" | "mobile">("web");
   const [recentRecords, setRecentRecords] = useState<any[]>([]);
   const [isHoliday, setIsHoliday] = useState<any>(null);
+  const [todayRecord, setTodayRecord] = useState<any>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -64,7 +66,19 @@ function AttendancePage() {
       .eq("user_id", profile.id)
       .order("created_at", { ascending: false })
       .limit(5);
-    if (data) setRecentRecords(data);
+    
+    if (data) {
+      setRecentRecords(data);
+      // Find latest record for today
+      const today = new Date().toISOString().split('T')[0];
+      const latestToday = data.find(r => r.check_in.startsWith(today));
+      setTodayRecord(latestToday || null);
+      
+      if (latestToday) {
+        setMarkedAt(fmtTime(new Date(latestToday.check_in)));
+        setState("success");
+      }
+    }
   };
 
   useEffect(() => {
@@ -93,6 +107,12 @@ function AttendancePage() {
     }
     checkHoliday();
   }, [current]);
+
+  useEffect(() => {
+    if (current?.id) {
+        checkGeo();
+    }
+  }, [current?.id]);
 
   useEffect(() => () => stopCamera(), []);
 
@@ -123,6 +143,19 @@ function AttendancePage() {
     });
   }
 
+  const handleExportRecent = async () => {
+    if (!profile?.id) return;
+    const { data } = await supabase
+      .from("attendance")
+      .select("*")
+      .eq("user_id", profile.id)
+      .order("created_at", { ascending: false });
+    
+    if (data) {
+      exportToCSV(data, `attendance_history_${profile.name.replace(/\s+/g, '_')}`);
+    }
+  };
+
   async function startCamera() {
     setErrorMsg("");
     setState("camera");
@@ -144,16 +177,57 @@ function AttendancePage() {
     setState("scanning");
     const timestamp = new Date();
     
-    // Determine status (check if late based on settings)
+    let lat = 0;
+    let lng = 0;
+
+    // Try to get precise location for the record
+    try {
+        const pos = await new Promise<GeolocationPosition>((res, rej) => {
+            navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 });
+        });
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+    } catch (e) {
+        console.warn("Could not get precise location for record, using 0,0");
+    }
+
     const status = isHoliday ? "holiday" : "present"; 
-    const { error } = await supabase.from("attendance").insert([{
-      user_id: profile?.id,
-      branch_id: current?.id,
-      status: status,
-      check_in: timestamp.toISOString(),
-      location_lat: distance !== null ? 0 : 0, // Placeholder for real lat
-      notes: (geo === "outside" ? "Marked outside geo-fence. " : "") + (isHoliday ? `Marked on ${isHoliday.name}` : "")
-    }]);
+    
+    if (todayRecord) {
+      // Perform Check-Out
+      const { error } = await supabase
+        .from("attendance")
+        .update({
+          check_out: timestamp.toISOString(),
+          notes: (todayRecord.notes || "") + (geo === "outside" ? " Checked out outside geo-fence." : "")
+        })
+        .eq("id", todayRecord.id);
+        
+      if (error) {
+        toast.error("Check-out failed: " + error.message);
+      } else {
+        toast.success("Checked out successfully!");
+      }
+    } else {
+      // Perform Check-In
+      const { error } = await supabase.from("attendance").insert([{
+        user_id: profile?.id,
+        branch_id: current?.id,
+        status: status,
+        check_in: timestamp.toISOString(),
+        location_lat: lat,
+        location_lng: lng,
+        notes: (geo === "outside" ? "Marked outside geo-fence. " : "") + (isHoliday ? `Marked on ${isHoliday.name}` : "")
+      }]);
+      
+      if (error) {
+        toast.error("Check-in failed: " + error.message);
+      } else {
+        toast.success("Checked in successfully!");
+      }
+    }
+
+    loadRecent();
 
     setTimeout(() => {
       stopCamera();
@@ -168,19 +242,161 @@ function AttendancePage() {
     }, 1500);
   };
 
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [faceDescriptor, setFaceDescriptor] = useState<Float32Array | null>(null);
+
+  useEffect(() => {
+    import("@/lib/face-recognition").then((mod) => {
+      mod.loadModels()
+        .then(() => {
+            console.log("Attendance: Models loaded");
+            setModelsLoaded(true);
+        })
+        .catch(err => {
+            console.error("Attendance: Models failed to load", err);
+            toast.error("Face recognition failed to initialize. Please check your internet connection.");
+        });
+    });
+  }, []);
+
+  async function registerFace() {
+    if (!modelsLoaded) return toast.info("Face recognition models are loading, please wait...");
+    setErrorMsg("");
+    setState("camera");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      
+      toast.info("Hold still... capturing face descriptor");
+      
+      // Give a moment for the user to align
+      await new Promise(res => setTimeout(res, 2500));
+      
+      const { getFaceDescriptor } = await import("@/lib/face-recognition");
+      const descriptor = await getFaceDescriptor(videoRef.current!);
+      
+      if (descriptor) {
+        const targetId = profile?.id || user?.id;
+        if (!targetId) throw new Error("User ID not found. Please re-login.");
+
+        console.log("Saving face descriptor via RPC for user:", targetId);
+        const { data: success, error } = await supabase
+          .rpc('update_own_face', {
+            p_id: targetId,
+            p_descriptor: Array.from(descriptor)
+          });
+        
+        if (error) throw error;
+        if (!success) {
+          throw new Error("RPC_FAILURE: Could not update profile for ID " + targetId);
+        }
+
+        toast.success("Face registered successfully!");
+        await refreshProfile();
+      } else {
+        toast.error("Could not detect face. Try again in better lighting.");
+      }
+    } catch (err: any) {
+      toast.error("Registration failed: " + err.message);
+    } finally {
+      stopCamera();
+      setState("idle");
+    }
+  }
+
+  async function verifyAndPunch() {
+    setState("scanning");
+    try {
+      const { getFaceDescriptor, compareFaces } = await import("@/lib/face-recognition");
+      const liveDescriptor = await getFaceDescriptor(videoRef.current!);
+      
+      if (!liveDescriptor) {
+        toast.error("No face detected. Please position your face clearly.");
+        setState("camera");
+        return;
+      }
+
+      const storedDescriptorArray = (profile as any).face_descriptor;
+      if (!storedDescriptorArray) {
+          console.error("Profile says registered but descriptor is missing:", profile);
+          toast.error("Face data is missing from your profile. Please re-register.");
+          setState("idle");
+          return;
+      }
+
+      const storedDescriptor = new Float32Array(storedDescriptorArray);
+      const isMatch = compareFaces(liveDescriptor, storedDescriptor);
+
+      if (isMatch) {
+        saveAttendance();
+      } else {
+        toast.error("Face verification failed. Not recognized.");
+        setState("camera");
+      }
+    } catch (err: any) {
+      toast.error("Verification error: " + err.message);
+      setState("camera");
+    }
+  }
+
   async function mark() {
     if (!current) return toast.error("Please select a branch first");
     setErrorMsg("");
-    if (!profile?.face_registered) {
-      setErrorMsg("Your face is not registered. Ask admin to register your face.");
-      return;
-    }
-
+    
     const ok = await checkGeo();
     if (geo === "denied") return;
     if (!ok) {
        toast.warning(`Outside geo-fence (${distance}m). Record will be flagged.`);
     }
+
+    if (punchMode === "mobile") {
+      setState("scanning");
+      try {
+        // Trigger native OS biometric prompt if available
+        if (window.PublicKeyCredential) {
+          const credential = await navigator.credentials.get({
+            publicKey: {
+              challenge: Uint8Array.from("secure-punch", c => c.charCodeAt(0)),
+              allowCredentials: [],
+              userVerification: "required"
+            }
+          });
+          
+          if (!credential) {
+            toast.error("Biometric verification failed.");
+            setState("idle");
+            return;
+          }
+        } else {
+            // Fallback for browsers without WebAuthn
+            toast.error("Biometric hardware not detected.");
+            setState("idle");
+            return;
+        }
+        
+        await new Promise(res => setTimeout(res, 1000));
+      } catch (e) {
+        console.error("Biometric error:", e);
+        toast.error("Verification cancelled or failed.");
+        setState("idle");
+        return;
+      }
+      await saveAttendance();
+      return;
+    }
+
+    if (!modelsLoaded) return toast.info("Face recognition models are loading, please wait...");
+    
+    // Check if face is registered
+    if (!profile?.face_registered) {
+        setErrorMsg("Your face is not registered.");
+        return;
+    }
+
     await startCamera();
   }
 
@@ -207,42 +423,110 @@ function AttendancePage() {
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
         <div className="rounded-2xl border bg-card p-6 shadow-card">
+          {(!modelsLoaded && profile?.role === "Admin") && (
+            <div className="mb-4 rounded-lg bg-warning/10 p-3 text-[11px] text-warning-foreground border border-warning/30 flex items-center justify-between">
+              <span>⚠️ Models failing to load? You can bypass for testing.</span>
+              <button onClick={saveAttendance} className="underline font-bold">Skip & Mark</button>
+            </div>
+          )}
           <div className="relative mx-auto aspect-video w-full overflow-hidden rounded-xl border-2 border-dashed bg-gradient-to-br from-muted/40 to-muted/10">
-            <video ref={videoRef} muted playsInline className={cn("absolute inset-0 h-full w-full object-cover", state !== "camera" && state !== "scanning" && "hidden")} />
+            <video 
+              ref={videoRef} 
+              muted 
+              playsInline 
+              className={cn(
+                "absolute inset-0 h-full w-full object-cover", 
+                (state !== "camera" && state !== "scanning") && "hidden"
+              )} 
+            />
 
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center pointer-events-none">
-              {state === "idle" && (
-                <>
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-                    <ScanFace className="h-10 w-10 text-primary" />
-                  </div>
-                  <div className="text-sm font-medium">Face Recognition Ready</div>
-                  <div className="max-w-xs text-xs text-muted-foreground">Position your face inside the frame.</div>
-                </>
-              )}
-              {state === "scanning" && (
-                <div className="flex flex-col items-center gap-2 rounded-xl bg-background/80 px-4 py-3 backdrop-blur-md">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <div className="text-sm font-medium">Saving record…</div>
+              {state === "scanning" ? (
+                <div className="flex flex-col items-center gap-2 rounded-xl bg-background/80 px-6 py-4 backdrop-blur-md animate-in fade-in zoom-in duration-300">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                  <div className="text-sm font-semibold">Processing...</div>
                 </div>
-              )}
-              {state === "success" && (
-                <>
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-success/15">
+              ) : state === "success" ? (
+                <div className="animate-in fade-in zoom-in duration-300">
+                  <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-success/15">
                     <CheckCircle2 className="h-10 w-10 text-success" />
                   </div>
-                  <div className="text-base font-semibold text-success">Punch Successful</div>
+                  <div className="mt-4 text-base font-semibold text-success">
+                    {todayRecord?.check_out ? "Check-Out Successful" : "Punch Successful"}
+                  </div>
                   <div className="text-xs text-muted-foreground">Recorded at {markedAt}</div>
-                </>
+                </div>
+              ) : punchMode === "mobile" ? (
+                <div className="pointer-events-auto flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-300">
+                  <div className="relative group cursor-pointer" onClick={mark}>
+                    <div className="absolute -inset-1 rounded-full bg-primary/20 animate-ping opacity-75" />
+                    <div className="absolute -inset-1 rounded-[2.5rem] bg-gradient-to-tr from-primary to-info opacity-75 blur transition duration-500 group-hover:opacity-100" />
+                    <div className="relative flex h-[18rem] w-[14rem] flex-col items-center justify-center rounded-[2rem] bg-card p-6 shadow-2xl">
+                        <div className="mb-6 relative">
+                            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
+                            <div className="relative h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center border-2 border-primary/20">
+                                <div className="h-12 w-12 text-primary opacity-80">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M2 12C2 12 5 7 12 7C19 7 22 12 22 12C22 12 19 17 12 17C5 17 2 12 2 12Z" className="opacity-20" />
+                                        <circle cx="12" cy="12" r="3" className="opacity-20" />
+                                        <path d="M12 12V12.01M12 15C10.3431 15 9 13.6569 9 12M15 12C15 13.6569 13.6569 15 12 15M18 12C18 15.3137 15.3137 18 12 18M6 12C6 15.3137 8.68629 18 12 18" />
+                                        <path d="M12 9C13.6569 9 15 10.3431 15 12M9 12C9 10.3431 10.3431 9 12 9M12 6C15.3137 6 18 8.68629 18 12M6 12C6 8.68629 8.68629 6 12 6M12 3C16.9706 3 21 7.02944 21 12M3 12C3 7.02944 7.02944 3 12 3" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-xs font-bold text-primary uppercase tracking-[0.2em]">Touch ID Ready</div>
+                            <div className="mt-1 text-[10px] font-bold text-foreground">ID: ATD-{profile?.name?.split(' ')[0].toUpperCase() || "USER"}</div>
+                            <div className="mt-2 text-[9px] text-muted-foreground animate-pulse">Tap scanner to verify</div>
+                        </div>
+                    </div>
+                  </div>
+                  
+                  <button 
+                    onClick={mark}
+                    disabled={branchLoading || geo === "denied"}
+                    className="flex items-center gap-2 rounded-full bg-primary px-8 py-3 text-sm font-bold text-primary-foreground shadow-elegant hover:scale-105 active:scale-95 transition-all"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    Verify Biometrics
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-3 animate-in fade-in zoom-in duration-300">
+                  {state === "idle" && (
+                    <>
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+                        <ScanFace className="h-10 w-10 text-primary" />
+                      </div>
+                      <div className="text-sm font-medium">
+                        {profile?.face_registered ? "Face Recognition Ready" : "Face Not Registered"}
+                      </div>
+                      <div className="max-w-xs text-xs text-muted-foreground text-center">
+                        {profile?.face_registered 
+                            ? "Position your face inside the frame." 
+                            : "You need to register your face before marking attendance."}
+                      </div>
+                      {!profile?.face_registered && (
+                        <button 
+                          onClick={registerFace} 
+                          className="mt-4 pointer-events-auto rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-elegant hover:opacity-90"
+                        >
+                          Register My Face Now
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </div>
 
             {(state === "idle" || state === "camera") && (
-              <div className="pointer-events-none absolute left-1/2 top-1/2 h-56 w-44 -translate-x-1/2 -translate-y-1/2 rounded-[40%] border-2 border-primary/60 shadow-elegant" />
+              <div className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-60 -translate-x-1/2 -translate-y-1/2 rounded-[45%] border-2 border-primary/60 shadow-elegant" />
             )}
             {state === "camera" && (
               <button
-                onClick={saveAttendance}
+                onClick={verifyAndPunch}
                 className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-elegant pointer-events-auto"
               >
                 Verify & Punch
@@ -251,7 +535,7 @@ function AttendancePage() {
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <GeoStatusCard geo={geo} branchName={current?.name || "..."} distance={distance} radius={current?.radius_meters || 150} />
+            <GeoStatusCard geo={geo} branchName={current?.name || "..."} distance={distance} radius={current?.radius_meters || 150} current={current} />
             <div className="flex items-center gap-3 rounded-xl border bg-background/40 p-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-info/10 text-info">
                 <Clock className="h-5 w-5" />
@@ -266,7 +550,14 @@ function AttendancePage() {
           {errorMsg && (
             <div className="mt-3 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs text-warning-foreground">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{errorMsg}</span>
+              <div className="flex-1">
+                <div>{errorMsg}</div>
+                {!profile?.face_registered && (
+                    <button onClick={registerFace} className="mt-2 text-primary font-bold hover:underline">
+                        Register Your Face Now
+                    </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -285,12 +576,12 @@ function AttendancePage() {
               <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {current?.name || "Select Branch"}</span>
             </div>
             <button
-              onClick={state === "success" ? () => setState("idle") : mark}
-              disabled={state === "scanning" || state === "camera" || !profile?.face_registered || branchLoading}
-              className="inline-flex items-center gap-2 rounded-xl gradient-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-elegant transition-transform hover:-translate-y-0.5 disabled:opacity-60"
+              onClick={mark}
+              disabled={state === "scanning" || state === "camera" || !profile?.face_registered || branchLoading || !!todayRecord?.check_out}
+              className="inline-flex items-center gap-2 rounded-xl gradient-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-elegant transition-transform hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0 disabled:grayscale"
             >
               <Camera className="h-4 w-4" />
-              {state === "success" ? "Mark Again" : "Mark Attendance"}
+              {todayRecord?.check_out ? "Shift Completed" : (todayRecord ? "Check Out" : "Check In")}
             </button>
           </div>
         </div>
@@ -304,11 +595,18 @@ function AttendancePage() {
             </div>
             <div className="rounded-xl border bg-background/40 p-4">
               <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Check Out</div>
-              <div className="mt-1 text-xl font-bold">—</div>
+              <div className="mt-1 text-xl font-bold">
+                {todayRecord?.check_out ? fmtTime(new Date(todayRecord.check_out)) : "—"}
+              </div>
             </div>
           </div>
 
-          <h3 className="mt-6 text-sm font-semibold">Recent Records</h3>
+          <div className="mt-6 flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Recent Records</h3>
+            <button onClick={handleExportRecent} className="text-[10px] font-bold uppercase tracking-wider text-primary hover:underline">
+              Export All
+            </button>
+          </div>
           <ol className="mt-3 space-y-3">
             {recentRecords.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">No records found</p>
@@ -330,15 +628,33 @@ function AttendancePage() {
   );
 }
 
-function GeoStatusCard({ geo, branchName, distance, radius }: { geo: GeoState; branchName: string; distance: number | null; radius: number }) {
+function GeoStatusCard({ geo, branchName, distance, radius, current }: { geo: GeoState; branchName: string; distance: number | null; radius: number; current: any }) {
+  const hasCoords = current?.lat && current?.lng;
+  
   const cfg = {
-    unknown:  { tone: "bg-muted/40 border-border text-muted-foreground", label: "Geo-fence not checked", icon: MapPin },
+    unknown:  { tone: "bg-muted/40 border-border text-muted-foreground", label: "Waiting for check…", icon: MapPin },
     checking: { tone: "bg-info/10 border-info/30 text-info",            label: "Locating you…",          icon: Loader2 },
     inside:   { tone: "bg-success/10 border-success/30 text-success",   label: `Inside ${branchName}`,   icon: ShieldCheck },
     outside:  { tone: "bg-warning/15 border-warning/40 text-warning-foreground", label: "Outside geo-fence", icon: AlertTriangle },
     denied:   { tone: "bg-destructive/10 border-destructive/30 text-destructive", label: "Location denied", icon: AlertTriangle },
   }[geo];
+
   const Icon = cfg.icon;
+
+  if (!hasCoords && geo !== "denied" && geo !== "checking") {
+      return (
+        <div className="flex items-center gap-3 rounded-xl border bg-warning/10 border-warning/30 p-3 text-warning-foreground">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-background/50">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <div className="text-[11px] uppercase tracking-wider opacity-70">Geo-fence</div>
+            <div className="text-sm font-semibold">No location set for branch</div>
+          </div>
+        </div>
+      );
+  }
+
   return (
     <div className={cn("flex items-center gap-3 rounded-xl border p-3", cfg.tone)}>
       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-background/50">
@@ -347,7 +663,7 @@ function GeoStatusCard({ geo, branchName, distance, radius }: { geo: GeoState; b
       <div className="flex-1">
         <div className="text-[11px] uppercase tracking-wider opacity-70">Geo-fence</div>
         <div className="text-sm font-semibold">{cfg.label}</div>
-        {distance !== null && (
+        {distance !== null && geo !== "denied" && (
           <div className="text-[11px] opacity-70">{distance}m from office · allowed {radius}m</div>
         )}
       </div>

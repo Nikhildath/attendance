@@ -8,6 +8,7 @@ import { statusMeta, type AttendanceStatus } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useSettings } from "@/lib/settings-context";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/reports")({
   head: () => ({
@@ -23,6 +24,15 @@ type Tab = "overview" | "muster" | "payroll";
 
 function ReportsPage() {
   const { settings } = useSettings();
+  const { profile } = useAuth();
+  const navigate = Route.useNavigate();
+
+  useEffect(() => {
+    if (profile && profile.role === "Employee") {
+      navigate({ to: "/" });
+    }
+  }, [profile]);
+
   const [tab, setTab] = useState<Tab>("overview");
   const [loading, setLoading] = useState(true);
   const [muster, setMuster] = useState<any[]>([]);
@@ -33,6 +43,9 @@ function ReportsPage() {
     activeEmployees: 0,
     productivity: "0"
   });
+  const [weeklyData, setWeeklyData] = useState<any[]>([]);
+  const [monthlyData, setMonthlyData] = useState<any[]>([]);
+  const [deptData, setDeptData] = useState<any[]>([]);
 
   const today = new Date();
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
@@ -46,14 +59,21 @@ function ReportsPage() {
       const { data: profiles } = await supabase.from("profiles").select("*");
       
       // Fetch current month attendance
-      const start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-      const end = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString();
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString();
       
       const { data: attendance } = await supabase
-        .from("attendance")
-        .select("*")
-        .gte("created_at", start)
-        .lte("created_at", end);
+          .from("attendance")
+          .select("*")
+          .gte("created_at", startOfMonth)
+          .lte("created_at", endOfMonth);
+
+      // Fetch last 6 months for monthly rate
+      const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString();
+      const { data: historicalAttendance } = await supabase
+          .from("attendance")
+          .select("*")
+          .gte("created_at", sixMonthsAgo);
 
       if (profiles && attendance) {
         // Build Muster Roll
@@ -81,8 +101,59 @@ function ReportsPage() {
           avgAttendance: totalPossible > 0 ? ((totalPresent / totalPossible) * 100).toFixed(1) + "%" : "0%",
           onTimeRate: totalPresent > 0 ? ((onTime / totalPresent) * 100).toFixed(1) + "%" : "0%",
           activeEmployees: profiles.length,
-          productivity: "92" // Static placeholder for complex calculation
+          productivity: totalPossible > 0 ? Math.min(100, Math.round((totalPresent / totalPossible) * 110)).toString() : "0"
         });
+
+        // Weekly Trend (Last 7 Days)
+        const weekly = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toLocaleDateString('en-US', { weekday: 'short' });
+            const dayAtt = attendance.filter(a => new Date(a.created_at).toDateString() === d.toDateString());
+            weekly.push({
+                day: dateStr,
+                present: dayAtt.filter(a => a.status === 'present').length,
+                late: dayAtt.filter(a => a.status === 'late').length,
+                absent: dayAtt.filter(a => a.status === 'absent').length
+            });
+        }
+        setWeeklyData(weekly);
+
+        // Monthly Rate (Last 6 Months)
+        const monthly = [];
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            const monthStr = d.toLocaleString('default', { month: 'short' });
+            const monthAtt = historicalAttendance?.filter(a => {
+                const ad = new Date(a.created_at);
+                return ad.getMonth() === d.getMonth() && ad.getFullYear() === d.getFullYear();
+            }) || [];
+            
+            const daysInThatMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+            const possible = profiles.length * (daysInThatMonth - 8); // Roughly excluding weekends
+            const actual = monthAtt.filter(a => a.status === 'present' || a.status === 'late').length;
+            
+            monthly.push({
+                month: monthStr,
+                rate: possible > 0 ? Math.min(100, Math.round((actual / possible) * 100)) : 0
+            });
+        }
+        setMonthlyData(monthly);
+
+        // Department Wise
+        const depts = Array.from(new Set(profiles.map(p => p.dept || 'General')));
+        const deptWise = depts.map(dept => {
+            const deptProfiles = profiles.filter(p => (p.dept || 'General') === dept);
+            const deptAtt = attendance.filter(a => deptProfiles.some(p => p.id === a.user_id));
+            const possible = deptProfiles.length * daysInMonth;
+            const actual = deptAtt.filter(a => a.status === 'present' || a.status === 'late').length;
+            return {
+                dept,
+                rate: possible > 0 ? Math.min(100, Math.round((actual / possible) * 100)) : 0
+            };
+        });
+        setDeptData(deptWise);
       }
 
       // Fetch Payslips
@@ -127,18 +198,18 @@ function ReportsPage() {
             <div className="rounded-xl border bg-card p-6 shadow-card">
               <h2 className="text-lg font-semibold">Monthly Attendance Rate</h2>
               <p className="text-xs text-muted-foreground">Company-wide attendance % per month</p>
-              <div className="mt-4"><MonthlyRateChart data={[]} /></div>
+              <div className="mt-4"><MonthlyRateChart data={monthlyData} /></div>
             </div>
             <div className="rounded-xl border bg-card p-6 shadow-card">
-              <h2 className="text-lg font-semibold">Activity Heatmap</h2>
-              <p className="text-xs text-muted-foreground">Recent engagement levels</p>
-              <div className="mt-4"><DepartmentBarChart data={[]} /></div>
+              <h2 className="text-lg font-semibold">Departmental Attendance</h2>
+              <p className="text-xs text-muted-foreground">Recent engagement levels by department</p>
+              <div className="mt-4"><DepartmentBarChart data={deptData} /></div>
             </div>
           </div>
           <div className="mt-6 rounded-xl border bg-card p-6 shadow-card">
             <h2 className="text-lg font-semibold">Weekly Trend</h2>
             <p className="text-xs text-muted-foreground">Present, late and absent counts across the week</p>
-            <WeeklyTrendChart data={[]} />
+            <WeeklyTrendChart data={weeklyData} />
           </div>
         </>
       )}

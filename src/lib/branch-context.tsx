@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { supabase } from "./supabase";
+import { useAuth } from "./auth";
 
 export type Branch = {
   id: string;
@@ -19,6 +20,7 @@ type BranchCtx = {
   setCurrent: (id: string) => void;
   all: Branch[];
   loading: boolean;
+  refresh: () => Promise<void>;
 };
 
 const Ctx = createContext<BranchCtx | null>(null);
@@ -28,28 +30,47 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      const { data, error } = await supabase
-        .from("branches")
-        .select("*")
-        .order("name");
-      
-      if (!error && data) {
-        setBranches(data);
-        if (data.length > 0 && !currentId) {
-          setCurrentId(data[0].id);
-        }
+  const loadBranches = async (userBranchId?: string | null) => {
+    const { data, error } = await supabase
+      .from("branches")
+      .select("*")
+      .order("name");
+    
+    if (!error && data) {
+      setBranches(data);
+      if (userBranchId) {
+        setCurrentId(userBranchId);
+      } else if (data.length > 0 && !currentId) {
+        setCurrentId(data[0].id);
       }
-      setLoading(false);
     }
-    load();
-  }, []);
+    setLoading(false);
+  };
+
+  const { profile } = useAuth();
+
+  useEffect(() => {
+    loadBranches(profile?.branch_id);
+    
+    // Subscribe to realtime branch changes
+    const channel = supabase
+      .channel('branches_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'branches' },
+        () => loadBranches(profile?.branch_id)
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id, profile?.branch_id]);
 
   const current = branches.find((b) => b.id === currentId) || null;
 
   return (
-    <Ctx.Provider value={{ current, setCurrent: setCurrentId, all: branches, loading }}>
+    <Ctx.Provider value={{ current, setCurrent: setCurrentId, all: branches, loading, refresh: loadBranches }}>
       {children}
     </Ctx.Provider>
   );

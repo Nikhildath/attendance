@@ -31,18 +31,22 @@ function Dashboard() {
     lastCheckIn: "Not yet",
   });
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [weeklyData, setWeeklyData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!profile?.id) return;
 
-    async function loadStats() {
-      // Fetch attendance counts
+    async function loadDashboard() {
+      setLoading(true);
+      
+      // Fetch all attendance for this user
       const { data: att } = await supabase
         .from("attendance")
-        .select("status, check_in")
+        .select("*")
         .eq("user_id", profile?.id);
 
-      // Fetch leaves
+      // Fetch leaves for this user
       const { data: lvs } = await supabase
         .from("leaves")
         .select("status")
@@ -68,21 +72,42 @@ function Dashboard() {
         });
 
         // Simple recent activity mapping
-        setRecentActivity(att.slice(0, 5).map((a, i) => ({
-          id: i,
+        setRecentActivity(att.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5).map((a, i) => ({
+          id: a.id,
           action: a.status === 'present' ? "Checked in" : `Marked ${a.status}`,
-          time: new Date(a.check_in || "").toLocaleString(),
+          time: new Date(a.check_in || a.created_at).toLocaleString(),
           status: a.status as any
         })));
+
+        // Weekly Trend (Last 7 Days)
+        const weekly = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toLocaleDateString('en-US', { weekday: 'short' });
+            const dayAtt = att.filter(a => new Date(a.created_at).toDateString() === d.toDateString());
+            weekly.push({
+                day: dateStr,
+                present: dayAtt.filter(a => a.status === 'present').length,
+                late: dayAtt.filter(a => a.status === 'late').length,
+                absent: dayAtt.filter(a => a.status === 'absent').length
+            });
+        }
+        setWeeklyData(weekly);
       }
+      setLoading(false);
     }
 
-    loadStats();
+    loadDashboard();
   }, [profile]);
+
+  const attendanceRate = stats.workingDays > 0 
+    ? ((stats.present + stats.late) / stats.workingDays) * 100 
+    : 0;
 
   return (
     <div className="space-y-6">
-      <HeroBanner name={profile?.name || "User"} />
+      <HeroBanner name={profile?.name || "User"} attendanceRate={attendanceRate} />
 
       <div className="flex flex-wrap items-center gap-4 rounded-[2rem] border border-border/50 bg-card/60 backdrop-blur-sm p-6 shadow-sm group transition-all hover:shadow-elegant">
         <div className="flex items-center gap-4">
@@ -124,7 +149,7 @@ function Dashboard() {
               <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-destructive shadow-[0_0_8px_var(--color-destructive)]" />Absent</span>
             </div>
           </div>
-          <WeeklyTrendChart data={[]} />
+          <WeeklyTrendChart data={weeklyData} />
         </div>
 
         <div className="rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-8 shadow-sm">

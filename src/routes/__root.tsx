@@ -7,6 +7,7 @@ import { BranchProvider } from "@/lib/branch-context";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Toaster } from "@/components/ui/sonner";
 import { SettingsProvider } from "@/lib/settings-context";
+import { LiveTracker } from "@/components/common/LiveTracker";
 
 function NotFoundComponent() {
   return (
@@ -53,6 +54,7 @@ function RootComponent() {
       <AuthProvider>
         <SettingsProvider>
           <RootContent />
+          <LiveTracker />
           <Toaster />
         </SettingsProvider>
       </AuthProvider>

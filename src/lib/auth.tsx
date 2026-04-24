@@ -10,7 +10,9 @@ export type Profile = {
   role: ProfileRole;
   dept?: string;
   face_registered?: boolean;
+  face_descriptor?: number[];
   password?: string;
+  branch_id?: string | null;
 };
 
 type AuthContextValue = {
@@ -21,6 +23,8 @@ type AuthContextValue = {
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  isAdmin?: boolean;
+  isManager?: boolean;
   isDevMode?: boolean;
 };
 
@@ -31,7 +35,7 @@ async function fetchProfile(user: User | null) {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id,email,name,role,dept,face_registered")
+    .select("id,email,name,role,dept,face_registered,face_descriptor,branch_id")
     .eq("id", user.id)
     .single();
 
@@ -47,7 +51,7 @@ async function fetchProfile(user: User | null) {
         role: "Employee",
         face_registered: false,
       })
-      .select("id,email,name,role,dept,face_registered")
+      .select("id,email,name,role,dept,face_registered,face_descriptor,branch_id")
       .single();
     
     if (insertError) {
@@ -212,6 +216,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       },
       refreshProfile,
+      isAdmin: profile?.role?.toLowerCase() === "admin",
+      isManager: profile?.role?.toLowerCase() === "manager",
     }),
     [user, profile, loading]
   );

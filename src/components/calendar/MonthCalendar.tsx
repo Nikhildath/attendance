@@ -34,13 +34,13 @@ const dotMap: Record<AttendanceStatus, string> = {
 };
 
 const cellTone: Record<AttendanceStatus, string> = {
-  present: "hover:border-success/60 hover:bg-success/5",
-  absent: "hover:border-destructive/60 hover:bg-destructive/5",
-  late: "hover:border-warning/60 hover:bg-warning/10",
-  leave: "hover:border-info/60 hover:bg-info/5",
-  holiday: "hover:border-holiday/60 hover:bg-holiday/5",
-  weekend: "opacity-60",
-  none: "opacity-50",
+  present: "border-success/40 bg-success/20 hover:border-success/60 hover:bg-success/25",
+  absent: "border-destructive/40 bg-destructive/20 hover:border-destructive/60 hover:bg-destructive/25",
+  late: "border-warning/40 bg-warning/25 hover:border-warning/60 hover:bg-warning/30",
+  leave: "border-info/40 bg-info/20 hover:border-info/60 hover:bg-info/25",
+  holiday: "border-holiday/40 bg-holiday/20 hover:border-holiday/60 hover:bg-holiday/25",
+  weekend: "opacity-60 bg-muted/30",
+  none: "opacity-50 hover:bg-muted/40",
 };
 
 export function MonthCalendar({ compact = false, onHolidaysChange }: { compact?: boolean; onHolidaysChange?: (h: { date: string; localName: string }[]) => void }) {
@@ -81,30 +81,82 @@ export function MonthCalendar({ compact = false, onHolidaysChange }: { compact?:
 
       const map: Record<number, { status: AttendanceStatus; checkIn?: string; checkOut?: string; note?: string }> = {};
       
-      // Default statuses for the month
+      // 1. Initialise all days
       const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
       for (let d = 1; d <= daysInMonth; d++) {
         const date = new Date(cursor.y, cursor.m, d);
         const dow = date.getDay();
-        if (dow === 0 || dow === 6) map[d] = { status: "weekend" };
-        else map[d] = { status: "none" };
+        
+        // Sunday is always a holiday by default
+        if (dow === 0) {
+          map[d] = { status: "holiday", note: "Sunday" };
+        } else if (dow === 6 && d >= 8 && d <= 14) {
+          // 2nd Saturday (Common in India, can be refined later if needed per country)
+          map[d] = { status: "holiday", note: "2nd Saturday" };
+        } else if (dow === 6) {
+          map[d] = { status: "weekend" };
+        } else {
+          map[d] = { status: "none" };
+        }
       }
 
+      // 2. Overwrite with Public Holidays from API
+      if (holidays && holidays.length > 0) {
+        holidays.forEach(h => {
+          const hDate = new Date(h.date);
+          if (hDate.getMonth() === cursor.m && hDate.getFullYear() === cursor.y) {
+            const d = hDate.getDate();
+            map[d] = { status: "holiday", note: h.localName };
+          }
+        });
+      }
+
+      // 3. Overwrite with actual Attendance data
       if (data) {
         data.forEach(rec => {
-          const d = new Date(rec.created_at).getDate();
+          const dateStr = rec.check_in || rec.created_at;
+          const d = new Date(dateStr).getDate();
+          const rawStatus = (rec.status || "present").toLowerCase();
+          
           map[d] = {
-            status: rec.status as AttendanceStatus,
+            status: rawStatus as AttendanceStatus,
             checkIn: rec.check_in ? new Date(rec.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
             checkOut: rec.check_out ? new Date(rec.check_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
             note: rec.notes
           };
         });
       }
+
+      // 4. Overwrite with Approved Leaves
+      const { data: leaves } = await supabase
+        .from("leaves")
+        .select("*")
+        .eq("user_id", profile.id)
+        .eq("status", "Approved")
+        .gte("from_date", start.split('T')[0])
+        .lte("to_date", end.split('T')[0]);
+
+      if (leaves) {
+        leaves.forEach(lv => {
+          const lStart = new Date(lv.from_date);
+          const lEnd = new Date(lv.to_date);
+          
+          for (let d = 1; d <= daysInMonth; d++) {
+            const curDate = new Date(cursor.y, cursor.m, d);
+            if (curDate >= lStart && curDate <= lEnd) {
+               // Leave applies if user didn't work
+               if (map[d]?.status === "none" || map[d]?.status === "absent" || map[d]?.status === "holiday") {
+                  map[d] = { status: "leave", note: `Leave: ${lv.reason}` };
+               }
+            }
+          }
+        });
+      }
+
       setAttendanceData(map);
     }
     load();
-  }, [cursor, profile]);
+  }, [cursor, profile, holidays]); // Now reacts to holiday changes too!
 
   useEffect(() => {
     if (onHolidaysChange) {

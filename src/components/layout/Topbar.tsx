@@ -6,22 +6,50 @@ import { Avatar2D } from "@/components/common/Avatar2D";
 import { useBranch } from "@/lib/branch-context";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/lib/supabase";
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
   const { theme, toggle } = useTheme();
   const { current, setCurrent, all, loading: branchLoading } = useBranch();
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  const navigate = useNavigate();
+  const { profile, signOut } = useAuth();
+
+  useEffect(() => {
+    const fetchResults = async () => {
+      if (search.length < 2) {
+        setResults([]);
+        return;
+      }
+      setIsSearching(true);
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .ilike("name", `%${search}%`)
+        .limit(5);
+      setResults(data || []);
+      setIsSearching(false);
+    };
+
+    const timer = setTimeout(fetchResults, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setResults([]);
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
-
-  const { profile, signOut } = useAuth();
 
   return (
     <header className="sticky top-0 z-20 flex h-20 items-center gap-4 border-b border-border/50 bg-background/60 px-4 backdrop-blur-xl md:px-8">
@@ -84,12 +112,44 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         )}
       </div>
 
-      <div className="relative hidden flex-1 max-w-lg md:block">
+      <div ref={searchRef} className="relative hidden flex-1 max-w-lg md:block">
         <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
         <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder="Search workforce data…"
           className="h-11 w-full rounded-[1.25rem] border border-border/50 bg-muted/40 pl-11 pr-4 text-sm font-medium outline-none transition-all focus:border-primary/50 focus:bg-background focus:ring-4 focus:ring-primary/5"
         />
+        
+        {results.length > 0 && (
+          <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-[1.5rem] border border-border/50 bg-popover/95 backdrop-blur-xl shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+             <div className="p-2">
+                {results.map((p) => (
+                  <button 
+                    key={p.id}
+                    onClick={() => {
+                        const name = p.name;
+                        setSearch("");
+                        setResults([]);
+                        navigate({ 
+                            to: "/team", 
+                            search: { q: name } as any 
+                        });
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-primary/5 transition-colors group"
+                  >
+                    <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full ring-2 ring-primary/10">
+                       <Avatar2D name={p.name} size={32} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                       <div className="text-[13px] font-bold truncate group-hover:text-primary transition-colors">{p.name}</div>
+                       <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{p.role} · {p.department || "No Dept"}</div>
+                    </div>
+                  </button>
+                ))}
+             </div>
+          </div>
+        )}
       </div>
 
       <div className="ml-auto flex items-center gap-3">

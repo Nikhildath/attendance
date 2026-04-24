@@ -9,6 +9,11 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/team")({
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      q: (search.q as string) || "",
+    };
+  },
   head: () => ({
     meta: [
       { title: "Team — Attendly" },
@@ -20,6 +25,7 @@ export const Route = createFileRoute("/team")({
 
 function TeamPage() {
   const { profile } = useAuth();
+  const { q } = Route.useSearch();
   const [members, setMembers] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,7 +112,7 @@ function TeamPage() {
               <tbody>
                 {loading ? (
                    <tr><td colSpan={4} className="py-10 text-center text-muted-foreground">Loading team...</td></tr>
-                ) : members.map((m) => (
+                ) : members.filter(m => !q || m.name.toLowerCase().includes(q.toLowerCase())).map((m) => (
                   <tr key={m.id} className="border-t transition-colors hover:bg-accent/30">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">

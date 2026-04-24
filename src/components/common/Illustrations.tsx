@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export function HeroBanner({ name }: { name: string }) {
+export function HeroBanner({ name, attendanceRate }: { name: string; attendanceRate?: number }) {
   const [info, setInfo] = useState<{ greet: string; dateStr: string } | null>(null);
 
   useEffect(() => {
@@ -12,6 +12,7 @@ export function HeroBanner({ name }: { name: string }) {
 
   const greet = info?.greet ?? "Hello";
   const dateStr = info?.dateStr ?? "";
+  const rate = attendanceRate ?? 0;
 
   return (
     <div className="relative overflow-hidden rounded-[2rem] gradient-hero p-8 text-primary-foreground shadow-elegant md:p-12 transition-transform hover:scale-[1.01] duration-500">
@@ -25,7 +26,7 @@ export function HeroBanner({ name }: { name: string }) {
             {greet}, {name} 👋
           </h1>
           <p className="max-w-xl text-lg font-medium opacity-90 leading-relaxed">
-            You've maintained a <strong className="text-white underline underline-offset-4 decoration-2">96% attendance rate</strong> this month. Keep the streak alive — mark your attendance to start the day.
+            You've maintained a <strong className="text-white underline underline-offset-4 decoration-2">{Math.round(rate)}% attendance rate</strong> this month. Keep the streak alive — mark your attendance to start the day.
           </p>
         </div>
         <div className="hidden lg:block scale-125 translate-x-4">

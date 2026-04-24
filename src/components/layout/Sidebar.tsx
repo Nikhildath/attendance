@@ -14,15 +14,14 @@ const nav = [
   { to: "/holidays", label: "Holidays", icon: PartyPopper },
   { to: "/shifts", label: "Shifts", icon: CalendarRange },
   { to: "/payroll", label: "Payroll", icon: Wallet },
-  { to: "/advances", label: "Advances", icon: Banknote },
-  { to: "/field-tracking", label: "Field Tracking", icon: MapPinned },
-  { to: "/reports", label: "Reports", icon: BarChart3 },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 const roleNav = [
-  { to: "/team", label: "Team (Manager)", icon: Users },
-  { to: "/admin", label: "Admin", icon: Shield },
+  { to: "/team", label: "Team Management", icon: Users, roles: ["Manager", "Admin"] },
+  { to: "/field-tracking", label: "Field Tracking", icon: MapPinned, roles: ["Manager", "Admin"] },
+  { to: "/reports", label: "Reports", icon: BarChart3, roles: ["Manager", "Admin"] },
+  { to: "/admin", label: "Admin Console", icon: Shield, roles: ["Admin"] },
 ] as const;
 
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
@@ -75,7 +74,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         })}
 
         {!collapsed && <div className="px-3 pb-2 pt-6 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Management</div>}
-        {roleNav.filter((item) => item.to !== "/admin" || isAdmin).map((item) => {
+        {roleNav.filter((item) => item.roles.includes(profile?.role || "Employee")).map((item) => {
           const active = isActive(item.to);
           const Icon = item.icon;
           return (
