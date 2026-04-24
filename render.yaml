@@ -1,34 +1,20 @@
 services:
-<<<<<<< HEAD
   # =========================
-  # Backend API (Web Service)
+  # Frontend React App
   # =========================
-  - type: web
-    name: my-backend
-    runtime: node
-    rootDir: server
-    buildCommand: npm install
-    startCommand: npm start
-    envVars:
-      - key: NODE_ENV
-        value: production
-
-  # =========================
-  # Frontend (Static Site)
-  # =========================
-  - type: web
-    name: my-frontend
-    runtime: static
-    rootDir: client
+  - type: static_site
+    name: attendance-frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
-=======
-  - type: web
-    name: attendance-hub
-    env: node
-    buildCommand: npm install && npm run build
-    startCommand: npm run start
     envVars:
-      - key: NODE_ENV
-        value: production
->>>>>>> 40a77b3 (update project)
+      - key: NODE_VERSION
+        value: 20
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_SOCKET_URL
+        sync: false
+
+# NOTE: Socket.IO server is deployed separately in /socket-server folder
+# See /socket-server/README.md for deployment instructions

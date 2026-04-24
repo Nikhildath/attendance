@@ -33,15 +33,23 @@ class SocketService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
 
-  connect(url: string, token: string): Promise<void> {
+  connect(url: string, token: string, userId?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         const socketUrl = url || import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
         
+        console.log('Attempting Socket connection to:', socketUrl);
+        console.log('Token provided:', !!token);
+        console.log('UserId provided:', !!userId);
+        
+        // Prepare auth object - include both token (for JWT) and userId (for custom sessions)
+        const auth: any = { token: token };
+        if (userId) {
+          auth.userId = userId;
+        }
+        
         this.socket = io(socketUrl, {
-          auth: {
-            token: token,
-          },
+          auth,
           reconnection: true,
           reconnectionDelay: 1000,
           reconnectionDelayMax: 5000,
@@ -50,7 +58,7 @@ class SocketService {
         });
 
         this.socket.on('connect', () => {
-          console.log('Socket connected:', this.socket?.id);
+          console.log('Socket connected successfully:', this.socket?.id);
           this.reconnectAttempts = 0;
           this.emit('connected', this.socket?.id);
           resolve();
@@ -63,24 +71,31 @@ class SocketService {
 
         this.socket.on('connect_error', (error) => {
           console.error('Socket connection error:', error);
-          reject(error);
+          this.emit('connection_error', error);
+          if (this.reconnectAttempts === 0) {
+            reject(error);
+          }
         });
 
         // Listen for staff location updates
         this.socket.on('staff_location_update', (data: StaffLocation) => {
+          console.log('Received location update:', data);
           this.emit('staff_location', data);
         });
 
         // Listen for batch location updates
         this.socket.on('staff_locations', (data: StaffLocation[]) => {
+          console.log('Received batch locations:', data.length);
           this.emit('staff_locations', data);
         });
 
         // Listen for online/offline status changes
         this.socket.on('staff_status_change', (data: { userId: string; status: 'active' | 'idle' | 'offline' }) => {
+          console.log('Status change:', data);
           this.emit('status_change', data);
         });
       } catch (error) {
+        console.error('Socket connection exception:', error);
         reject(error);
       }
     });
