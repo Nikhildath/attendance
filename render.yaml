@@ -1,6 +1,27 @@
 services:
   # =========================
-  # Frontend React App
+  # Socket.IO Server (Web Service)
+  # =========================
+  - type: web
+    name: attendance-socket-server
+    runtime: node
+    rootDir: socket-server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+
+  # =========================
+  # Frontend React App (Static Site)
   # =========================
   - type: static_site
     name: attendance-frontend
@@ -15,6 +36,3 @@ services:
         sync: false
       - key: VITE_SOCKET_URL
         sync: false
-
-# NOTE: Socket.IO server is deployed separately in /socket-server folder
-# See /socket-server/README.md for deployment instructions
