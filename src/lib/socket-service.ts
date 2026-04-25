@@ -1,8 +1,5 @@
 import { io, Socket } from 'socket.io-client';
 
-// Socket.io service for real-time location tracking
-let socket: Socket | null = null;
-
 export interface StaffLocation {
   id: string;
   name: string;
@@ -30,75 +27,90 @@ export interface LocationUpdate {
 class SocketService {
   private socket: Socket | null = null;
   private listeners: Map<string, Set<Function>> = new Map();
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private isConnecting = false;
+  private connectionPromise: Promise<void> | null = null;
 
   connect(url: string, token: string, userId?: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+    // If already connected, return immediately
+    if (this.socket?.connected) {
+      console.log('Socket already connected');
+      return Promise.resolve();
+    }
+
+    // If currently connecting, return the existing promise
+    if (this.isConnecting && this.connectionPromise) {
+      console.log('Connection already in progress, returning existing promise');
+      return this.connectionPromise;
+    }
+
+    this.isConnecting = true;
+    this.connectionPromise = new Promise((resolve, reject) => {
       try {
         const socketUrl = url || import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
         
-        console.log('Attempting Socket connection to:', socketUrl);
-        console.log('Token provided:', !!token);
-        console.log('UserId provided:', !!userId);
+        console.log('🔌 Connecting to Socket server at:', socketUrl);
+        console.log('🔑 Auth - Token:', !!token, 'UserId:', !!userId);
         
-        // Prepare auth object - include both token (for JWT) and userId (for custom sessions)
-        const auth: any = { token: token };
-        if (userId) {
-          auth.userId = userId;
-        }
+        // Prepare auth object
+        const auth: any = {};
+        if (token) auth.token = token;
+        if (userId) auth.userId = userId;
         
         this.socket = io(socketUrl, {
           auth,
           reconnection: true,
           reconnectionDelay: 1000,
           reconnectionDelayMax: 5000,
-          reconnectionAttempts: this.maxReconnectAttempts,
+          reconnectionAttempts: 10,
           transports: ['websocket', 'polling'],
         });
 
         this.socket.on('connect', () => {
-          console.log('Socket connected successfully:', this.socket?.id);
-          this.reconnectAttempts = 0;
+          console.log('✅ Socket connected successfully:', this.socket?.id);
+          this.isConnecting = false;
           this.emit('connected', this.socket?.id);
           resolve();
         });
 
         this.socket.on('disconnect', (reason) => {
-          console.log('Socket disconnected:', reason);
+          console.log('❌ Socket disconnected:', reason);
           this.emit('disconnected', reason);
         });
 
-        this.socket.on('connect_error', (error) => {
-          console.error('Socket connection error:', error);
+        this.socket.on('connect_error', (error: any) => {
+          console.error('⚠️ Socket connection error:', error.message || error);
           this.emit('connection_error', error);
-          if (this.reconnectAttempts === 0) {
+          if (this.isConnecting) {
+            this.isConnecting = false;
             reject(error);
           }
         });
 
         // Listen for staff location updates
         this.socket.on('staff_location_update', (data: StaffLocation) => {
-          console.log('Received location update:', data);
+          console.log('📍 Received location update:', data);
           this.emit('staff_location', data);
         });
 
         // Listen for batch location updates
         this.socket.on('staff_locations', (data: StaffLocation[]) => {
-          console.log('Received batch locations:', data.length);
+          console.log('📍 Received batch locations:', data.length);
           this.emit('staff_locations', data);
         });
 
-        // Listen for online/offline status changes
+        // Listen for status changes
         this.socket.on('staff_status_change', (data: { userId: string; status: 'active' | 'idle' | 'offline' }) => {
-          console.log('Status change:', data);
+          console.log('🔄 Status change:', data);
           this.emit('status_change', data);
         });
       } catch (error) {
-        console.error('Socket connection exception:', error);
+        console.error('💥 Socket connection exception:', error);
+        this.isConnecting = false;
         reject(error);
       }
     });
+
+    return this.connectionPromise;
   }
 
   disconnect(): void {

@@ -320,7 +320,22 @@ function AttendancePage() {
         return;
       }
 
-      const storedDescriptorArray = (profile as any).face_descriptor;
+      let storedDescriptorArray = (profile as any)?.face_descriptor;
+      if (!storedDescriptorArray && profile?.id) {
+        const { data: latestProfile, error: profileError } = await supabase
+          .from("profiles")
+          .select("face_descriptor, face_registered")
+          .eq("id", profile.id)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error("Failed to reload face descriptor:", profileError);
+        } else if (latestProfile?.face_descriptor) {
+          storedDescriptorArray = latestProfile.face_descriptor;
+          await refreshProfile();
+        }
+      }
+
       if (!storedDescriptorArray) {
           console.error("Profile says registered but descriptor is missing:", profile);
           toast.error("Face data is missing from your profile. Please re-register.");

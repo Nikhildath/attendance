@@ -53,9 +53,11 @@ function RootComponent() {
     <ThemeProvider>
       <AuthProvider>
         <SettingsProvider>
-          <RootContent />
-          <LiveTracker />
-          <Toaster />
+          <BranchProvider>
+            <RootContent />
+            <LiveTracker />
+            <Toaster />
+          </BranchProvider>
         </SettingsProvider>
       </AuthProvider>
     </ThemeProvider>
@@ -91,8 +93,8 @@ function RootContent() {
   }
 
   return (
-    <BranchProvider>
+    <>
       {hideShell ? <Outlet /> : <AppShell><Outlet /></AppShell>}
-    </BranchProvider>
+    </>
   );
 }

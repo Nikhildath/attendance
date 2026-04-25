@@ -56,7 +56,7 @@ create table public.attendance (
 create table public.leaves (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references public.profiles(id) on delete cascade,
-    type text not null check (type in ('Casual', 'Sick', 'Annual', 'Unpaid')),
+    type text not null,
     from_date date not null,
     to_date date not null,
     days numeric not null,
@@ -65,6 +65,18 @@ create table public.leaves (
     reason text,
     approved_by uuid references public.profiles(id),
     created_at timestamptz default now()
+);
+
+-- Leave Categories
+create table public.leave_categories (
+    id uuid primary key default gen_random_uuid(),
+    name text unique not null,
+    annual_allowance numeric default 0,
+    is_paid boolean default true,
+    is_active boolean default true,
+    sort_order integer default 0,
+    created_at timestamptz default now(),
+    updated_at timestamptz default now()
 );
 
 -- Organisation Settings
@@ -93,6 +105,7 @@ create table public.staff_tracking (
     battery integer default 100,
     current_task text,
     speed_kmh numeric default 0,
+    accuracy numeric default 0,
     last_update timestamptz default now(),
     created_at timestamptz default now()
 );
@@ -322,6 +335,7 @@ $$ language plpgsql;
 create trigger update_branches_updated_at before update on public.branches for each row execute procedure update_updated_at_column();
 create trigger update_profiles_updated_at before update on public.profiles for each row execute procedure update_updated_at_column();
 create trigger update_organisation_settings_updated_at before update on public.organisation_settings for each row execute procedure update_updated_at_column();
+create trigger update_leave_categories_updated_at before update on public.leave_categories for each row execute procedure update_updated_at_column();
 
 -- 5. ACCESS CONTROL (RLS DISABLED)
 -- Disabling RLS on all tables to ensure smooth administrative management and prevent policy violations.
@@ -329,6 +343,7 @@ create trigger update_organisation_settings_updated_at before update on public.o
 alter table public.profiles disable row level security;
 alter table public.attendance disable row level security;
 alter table public.leaves disable row level security;
+alter table public.leave_categories disable row level security;
 alter table public.branches disable row level security;
 alter table public.organisation_settings disable row level security;
 alter table public.payslips disable row level security;
@@ -353,3 +368,15 @@ on conflict (id) do nothing;
 insert into public.branches (name, city, country)
 values ('Main Office', 'Mumbai', 'India')
 on conflict do nothing;
+
+insert into public.leave_categories (name, annual_allowance, is_paid, is_active, sort_order)
+values
+    ('Annual', 20, true, true, 1),
+    ('Sick', 10, true, true, 2),
+    ('Casual', 8, true, true, 3),
+    ('Unpaid', 0, false, true, 4)
+on conflict (name) do update set
+    annual_allowance = excluded.annual_allowance,
+    is_paid = excluded.is_paid,
+    is_active = excluded.is_active,
+    sort_order = excluded.sort_order;

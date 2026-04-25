@@ -1,21 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { MapPin, MapPinned, Navigation, Battery, Zap, Info, Search, Filter, Radio, ChevronRight, Activity, Clock, Pause, Power } from "lucide-react";
+import { MapPin, MapPinned, Battery, Search, Radio, Activity, Pause, Power } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
-import { socketService, type StaffLocation } from "@/lib/socket-service";
 import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/field-tracking")({
   head: () => ({
     meta: [
       { title: "Field Staff Tracking — Attendly" },
-      { name: "description", content: "Live geo-tracking of field staff with status, battery and current task. Real-time updates powered by socket.io" },
+      { name: "description", content: "Live geo-tracking of field staff with status, battery and current task." },
     ],
   }),
   component: FieldTrackingPage,
 });
+
+const OFFLINE_AFTER_MS = 90_000;
 
 type FieldStaff = {
   id: string;
@@ -23,13 +24,14 @@ type FieldStaff = {
   initials: string;
   role: string;
   status: "active" | "idle" | "offline";
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
   battery: number;
   task: string;
   speedKmh: number;
   lastUpdate: string;
   accuracy?: number;
+  branch_id?: string | null;
 };
 
 function FieldTrackingPage() {
@@ -47,14 +49,19 @@ function FieldTrackingPage() {
   const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
   const [loading, setLoading] = useState(true);
-  const [socketConnected, setSocketConnected] = useState(false);
-  const [useSocketIO, setUseSocketIO] = useState(false);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
   
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const markersRef = useRef<Record<string, any>>({});
   const realtimeSubRef = useRef<any>(null);
-  const staffMapRef = useRef<Map<string, FieldStaff>>(new Map());
+
+  const getTrackingStatus = (tracking: any): FieldStaff["status"] => {
+    if (!tracking?.last_update) return "offline";
+    const ageMs = Date.now() - new Date(tracking.last_update).getTime();
+    if (ageMs > OFFLINE_AFTER_MS) return "offline";
+    return (tracking.status as FieldStaff["status"]) || "active";
+  };
 
   const loadData = async () => {
     try {
@@ -74,7 +81,7 @@ function FieldTrackingPage() {
             name: p.name || "Unknown",
             initials: (p.name || "U").split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
             role: p.role,
-            status: (t?.status as any) || "offline",
+            status: getTrackingStatus(t),
             lat: t?.lat ? Number(t.lat) : null,
             lng: t?.lng ? Number(t.lng) : null,
             battery: t?.battery || 0,
@@ -86,14 +93,16 @@ function FieldTrackingPage() {
           } as any;
         });
         setStaff(merged);
-        staffMapRef.current = new Map(merged.map(s => [s.id, s]));
         
         // Initial selected branch
         if (profile?.branch_id && selectedBranchId === "all") {
             setSelectedBranchId(profile.branch_id);
         }
 
-        if (merged.length > 0 && !selected) setSelected(merged[0]);
+        setSelected((prev) => {
+          if (!prev) return merged[0] ?? null;
+          return merged.find((item) => item.id === prev.id) ?? prev;
+        });
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -102,93 +111,27 @@ function FieldTrackingPage() {
     }
   };
 
-  // Listen for staff location updates
   useEffect(() => {
     if (!profile?.id) return;
 
-    // Check connection status periodically for UI
-    const checkInterval = setInterval(() => {
-      setSocketConnected(socketService.isConnected());
-      setUseSocketIO(socketService.isConnected());
-    }, 2000);
-
-    // Initial state
-    setSocketConnected(socketService.isConnected());
-    setUseSocketIO(socketService.isConnected());
-
-    // Request fresh data from socket
-    if (socketService.isConnected()) {
-        socketService.requestStaffLocations();
-    }
-
-    // Listen for location updates from socket
-    const unsubscribeLocation = socketService.onStaffLocationUpdate((data: StaffLocation) => {
-      const staffMember = staffMapRef.current.get(data.id) || {
-        id: data.id,
-        name: data.name,
-        initials: (data.name || "U").split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
-        role: 'Field Staff',
-        task: 'On field',
-        accuracy: 0,
-        speedKmh: 0,
-        status: data.status
-      };
-      const updated = { ...staffMember, ...data };
-      staffMapRef.current.set(data.id, updated as any);
-      setStaff(Array.from(staffMapRef.current.values()));
-      if (selected?.id === data.id) setSelected(updated as any);
-    });
-
-    const unsubscribeLocations = socketService.onStaffLocations((data: StaffLocation[]) => {
-      const updated: FieldStaff[] = data.map(d => ({
-        id: d.id,
-        name: d.name,
-        initials: (d.name || "U").split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
-        role: 'Field Staff',
-        status: d.status,
-        lat: d.lat,
-        lng: d.lng,
-        battery: d.battery,
-        task: d.task,
-        speedKmh: d.speed,
-        lastUpdate: new Date(d.lastUpdate).toLocaleTimeString(),
-        accuracy: d.accuracy,
-        branch_id: (staffMapRef.current.get(d.id) as any)?.branch_id
-      }));
-      setStaff(prev => {
-          // Merge with existing branch_id info
-          return updated.map(u => ({
-              ...u,
-              branch_id: (prev.find(p => p.id === u.id) as any)?.branch_id || u.branch_id
-          }));
-      });
-      staffMapRef.current = new Map(updated.map(s => [s.id, s]));
-      if (updated.length > 0 && !selected) setSelected(updated[0]);
-    });
-
-    return () => {
-      clearInterval(checkInterval);
-      unsubscribeLocation();
-      unsubscribeLocations();
-    };
-  }, [profile?.id, selected?.id]);
-
-  useEffect(() => {
     loadData();
-    
-    // Setup Supabase Realtime as fallback if socket not connected
-    if (!socketConnected) {
-      realtimeSubRef.current = supabase.channel('tracking_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_tracking' }, () => loadData())
-        .subscribe();
-    }
+
+    const channel = supabase.channel('tracking_changes_' + profile.id)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_tracking' }, () => loadData())
+      .subscribe((status) => setRealtimeConnected(status === "SUBSCRIBED"));
+    const refreshInterval = window.setInterval(loadData, 30_000);
+
+    realtimeSubRef.current = channel;
 
     return () => {
+      window.clearInterval(refreshInterval);
+      setRealtimeConnected(false);
       if (realtimeSubRef.current) {
         supabase.removeChannel(realtimeSubRef.current);
+        realtimeSubRef.current = null;
       }
     };
-  }, [socketConnected]);
+  }, [profile?.id]);
 
   // Initialize Leaflet
   useEffect(() => {
@@ -342,10 +285,10 @@ function FieldTrackingPage() {
       />
 
       <div className="mb-6 flex flex-wrap items-center gap-4">
-        {socketConnected && (
+        {realtimeConnected && (
           <div className="inline-flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-4 py-2 text-sm text-success">
             <Radio className="h-4 w-4 animate-pulse" />
-            <span className="font-medium">Live connection active</span>
+            <span className="font-medium">Supabase realtime active</span>
           </div>
         )}
         <button 
@@ -368,9 +311,9 @@ function FieldTrackingPage() {
         <PillStat label="Idle" value={counts.idle} cls="bg-warning/15 text-warning-foreground border-warning/40" />
         <PillStat label="Offline" value={counts.offline} cls="bg-muted text-muted-foreground border-border" />
         <PillStat 
-          label={socketConnected ? "Socket.io" : "Supabase Realtime"} 
-          value={socketConnected ? 1 : 0} 
-          cls={socketConnected ? "bg-info/10 text-info border-info/30" : "bg-warning/10 text-warning border-warning/30"}
+          label="Supabase" 
+          value={realtimeConnected ? 1 : 0} 
+          cls={realtimeConnected ? "bg-info/10 text-info border-info/30" : "bg-warning/10 text-warning border-warning/30"}
         />
       </div>
 

@@ -268,7 +268,7 @@ function WorkSettings({ data, onChange, isAdmin }: { data: any; onChange: (d: an
 function SystemSettings({ isAdmin }: { isAdmin: boolean }) {
   const ALL_TABLES = [
     "branches", "profiles", "organisation_settings", "shifts", 
-    "shift_schedule", "attendance", "leaves", "company_holidays", 
+    "shift_schedule", "attendance", "leave_categories", "leaves", "company_holidays", 
     "payslips", "comp_off_requests", "financial_requests", "staff_tracking"
   ];
 
@@ -308,7 +308,7 @@ function SystemSettings({ isAdmin }: { isAdmin: boolean }) {
         // Restore in order to satisfy foreign keys (branches first, then profiles, then others)
         const order = [
           "branches", "profiles", "organisation_settings", "shifts",
-          "shift_schedule", "attendance", "leaves", "company_holidays",
+          "shift_schedule", "attendance", "leave_categories", "leaves", "company_holidays",
           "payslips", "comp_off_requests", "financial_requests", "staff_tracking"
         ];
 

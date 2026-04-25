@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from "react";
 import { supabase } from "./supabase";
 import { useAuth } from "./auth";
 
@@ -29,6 +29,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const channelRef = useRef<any>(null);
 
   const loadBranches = async (userBranchId?: string | null) => {
     const { data, error } = await supabase
@@ -50,9 +51,31 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
 
   useEffect(() => {
-    loadBranches(profile?.branch_id);
+    let isMounted = true;
     
-    // Subscribe to realtime branch changes
+    const setupBranches = async () => {
+      if (!isMounted) return;
+      await loadBranches(profile?.branch_id);
+    };
+
+    setupBranches();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [profile?.id]);
+
+  // Separate effect for realtime subscription
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    // Clean up old channel first
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    // Create new subscription
     const channel = supabase
       .channel('branches_changes')
       .on(
@@ -62,10 +85,15 @@ export function BranchProvider({ children }: { children: ReactNode }) {
       )
       .subscribe();
 
+    channelRef.current = channel;
+
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
-  }, [profile?.id, profile?.branch_id]);
+  }, [profile?.id]);
 
   const current = branches.find((b) => b.id === currentId) || null;
 

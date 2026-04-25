@@ -30,14 +30,20 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-async function fetchProfile(user: User | null) {
-  if (!user) return null;
-
+async function fetchProfileById(userId: string) {
   const { data, error } = await supabase
     .from("profiles")
     .select("id,email,name,role,dept,face_registered,face_descriptor,branch_id")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
+
+  return { data: (data as Profile) ?? null, error };
+}
+
+async function fetchProfile(user: User | null) {
+  if (!user) return null;
+
+  const { data, error } = await fetchProfileById(user.id);
 
   if (error && !data) {
     // If profile doesn't exist, try to create it (though the trigger should handle this)
@@ -131,16 +137,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshProfile = async () => {
-    let userId = profile?.id || user?.id;
+    const userId = profile?.id || user?.id;
     if (!userId) return;
     
     setLoading(true);
-    const { data } = await supabase.rpc('get_profile_by_id', { p_id: userId }).maybeSingle();
-    if (data) {
-      setProfile(data as Profile);
+    let nextProfile: Profile | null = null;
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_profile_by_id', { p_id: userId }).maybeSingle();
+    if (!rpcError && rpcData) {
+      nextProfile = rpcData as Profile;
+    } else {
+      const { data: directProfile } = await fetchProfileById(userId);
+      nextProfile = directProfile;
+    }
+
+    if (nextProfile) {
+      setProfile(nextProfile);
       if (localStorage.getItem("sb_custom_session")) {
         localStorage.setItem("sb_custom_session", JSON.stringify({
-          profile: data,
+          profile: nextProfile,
           timestamp: Date.now(),
         }));
       }
@@ -162,10 +177,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .maybeSingle();
 
         if (!profileError && profileData) {
-          const profile = profileData as Profile;
-          setProfile(profile);
+          const baseProfile = profileData as Profile;
+          const { data: fullProfile } = await fetchProfileById(baseProfile.id);
+          const resolvedProfile = fullProfile || baseProfile;
+          setProfile(resolvedProfile);
           localStorage.setItem("sb_custom_session", JSON.stringify({
-            profile: profile,
+            profile: resolvedProfile,
             timestamp: Date.now(),
           }));
           setLoading(false);
