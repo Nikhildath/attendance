@@ -299,6 +299,55 @@ BEGIN
 END;
 $$ language plpgsql security definer;
 
+-- RPC: Upsert Staff Tracking
+create or replace function public.upsert_staff_tracking(
+    p_id uuid,
+    p_lat numeric,
+    p_lng numeric,
+    p_battery integer default 100,
+    p_speed_kmh numeric default 0,
+    p_accuracy numeric default 0,
+    p_current_task text default null,
+    p_status text default 'active'
+)
+returns boolean as $$
+begin
+  insert into public.staff_tracking (
+    user_id,
+    lat,
+    lng,
+    battery,
+    speed_kmh,
+    accuracy,
+    current_task,
+    status,
+    last_update
+  )
+  values (
+    p_id,
+    p_lat,
+    p_lng,
+    coalesce(p_battery, 100),
+    coalesce(p_speed_kmh, 0),
+    coalesce(p_accuracy, 0),
+    p_current_task,
+    coalesce(p_status, 'active'),
+    now()
+  )
+  on conflict (user_id) do update set
+    lat = excluded.lat,
+    lng = excluded.lng,
+    battery = excluded.battery,
+    speed_kmh = excluded.speed_kmh,
+    accuracy = excluded.accuracy,
+    current_task = excluded.current_task,
+    status = excluded.status,
+    last_update = now();
+
+  return true;
+end;
+$$ language plpgsql security definer;
+
 -- Trigger: Handle New User from Auth
 create or replace function public.handle_new_user()
 returns trigger as $$

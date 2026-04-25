@@ -393,9 +393,9 @@ function AdminPage() {
                     <h3 className="font-semibold">{b.name}</h3>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeBranch(b.id)}><Trash2 className="h-4 w-4" /></Button>
                   </div>
-                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="space-y-2 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /> {b.city}, {b.country}</div>
-                    <div className="flex items-center gap-2"><Users className="h-4 w-4" /> {b.employees_count || 0} Staff</div>
+                    <div className="flex items-center gap-2"><Users className="h-4 w-4" /> {b.active_staff_count || 0} active / {b.total_staff_count ?? b.employees_count ?? 0} total</div>
                     {b.lat && <div className="text-[10px] font-mono mt-2 bg-muted p-1 rounded">LOC: {b.lat.toFixed(4)}, {b.lng?.toFixed(4)}</div>}
                   </div>
                 </div>

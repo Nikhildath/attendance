@@ -26,7 +26,7 @@ type FieldStaff = {
   status: "active" | "idle" | "offline";
   lat: number | null;
   lng: number | null;
-  battery: number;
+  battery: number | null;
   task: string;
   speedKmh: number;
   lastUpdate: string;
@@ -54,6 +54,7 @@ function FieldTrackingPage() {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const markersRef = useRef<Record<string, any>>({});
+  const branchMarkersRef = useRef<Record<string, any>>({});
   const realtimeSubRef = useRef<any>(null);
 
   const getTrackingStatus = (tracking: any): FieldStaff["status"] => {
@@ -70,8 +71,10 @@ function FieldTrackingPage() {
       if (branchData) setBranches(branchData);
 
       // Fetch profiles with branch_id
-      const { data: profiles } = await supabase.from("profiles").select("*");
-      const { data: tracking } = await supabase.from("staff_tracking").select("*");
+      const [{ data: profiles }, { data: tracking }] = await Promise.all([
+        supabase.from("profiles").select("*"),
+        supabase.from("staff_tracking").select("*"),
+      ]);
 
       if (profiles) {
         const merged: FieldStaff[] = profiles.map(p => {
@@ -84,7 +87,7 @@ function FieldTrackingPage() {
             status: getTrackingStatus(t),
             lat: t?.lat ? Number(t.lat) : null,
             lng: t?.lng ? Number(t.lng) : null,
-            battery: t?.battery || 0,
+            battery: typeof t?.battery === "number" ? t.battery : null,
             task: t?.current_task || "No active task",
             speedKmh: Number(t?.speed_kmh || 0),
             lastUpdate: t?.last_update ? new Date(t.last_update).toLocaleTimeString() : "Never",
@@ -118,6 +121,7 @@ function FieldTrackingPage() {
 
     const channel = supabase.channel('tracking_changes_' + profile.id)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_tracking' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => loadData())
       .subscribe((status) => setRealtimeConnected(status === "SUBSCRIBED"));
     const refreshInterval = window.setInterval(loadData, 30_000);
 
@@ -161,18 +165,32 @@ function FieldTrackingPage() {
     return () => { canceled = true; };
   }, []);
 
+  const filtered = staff.filter((s) => {
+    const matchesQuery = s.name.toLowerCase().includes(q.toLowerCase());
+    const matchesBranch = selectedBranchId === "all" || (s as any).branch_id === selectedBranchId;
+    return matchesQuery && matchesBranch;
+  });
+
   // Update markers
   useEffect(() => {
     if (typeof window === "undefined" || !mapInstance.current) return;
     (async () => {
       const L = (await import("leaflet")).default;
-      staff.forEach((s) => {
-        if (s.lat === null || s.lng === null) return; // Skip if no location
+      const visibleIds = new Set(filtered.map((item) => item.id));
+
+      Object.entries(markersRef.current).forEach(([id, marker]) => {
+        if (!visibleIds.has(id)) {
+          marker.remove();
+          delete markersRef.current[id];
+        }
+      });
+
+      filtered.forEach((s) => {
+        if (s.lat === null || s.lng === null) return;
         const isActive = s.status === "active";
         const isIdle = s.status === "idle";
         const color = isActive ? "#16a34a" : isIdle ? "#eab308" : "#94a3b8";
-        const opacity = isActive || isIdle ? 1 : 0.6;
-        
+
         const html = `
           <div class="relative flex flex-col items-center">
             ${isActive ? '<div class="absolute -top-1 -inset-x-1 h-10 w-10 animate-ping rounded-full bg-success/30"></div>' : ''}
@@ -186,13 +204,13 @@ function FieldTrackingPage() {
             ${isActive ? '<span class="absolute top-0 right-0 h-3.5 w-3.5 rounded-full bg-success border-2 border-white z-20"></span>' : ''}
           </div>
         `;
-        const icon = L.divIcon({ 
-          html, 
-          className: "", 
-          iconSize: [40, 50], 
-          iconAnchor: [20, 48] // Point of the pin
+        const icon = L.divIcon({
+          html,
+          className: "",
+          iconSize: [40, 50],
+          iconAnchor: [20, 48]
         });
-        
+
         const existing = markersRef.current[s.id];
         const popupContent = `
           <div class="p-2 min-w-[150px]">
@@ -208,7 +226,7 @@ function FieldTrackingPage() {
               </div>
               <div class="flex items-center justify-between text-[10px]">
                 <span class="uppercase tracking-wider font-bold">Battery:</span>
-                <span class="font-semibold">${s.battery}%</span>
+                <span class="font-semibold">${s.battery === null ? 'N/A' : `${s.battery}%`}</span>
               </div>
               <div class="flex items-center justify-between text-[10px]">
                 <span class="uppercase tracking-wider font-bold">${s.status === 'offline' ? 'Last Seen:' : 'Last Update:'}</span>
@@ -229,33 +247,77 @@ function FieldTrackingPage() {
           markersRef.current[s.id] = m;
         }
       });
-      
-      // If we have markers and map is at default, fit bounds
-      if (staff.length > 0 && mapInstance.current.getZoom() < 6) {
-          const group = L.featureGroup(Object.values(markersRef.current));
-          mapInstance.current.fitBounds(group.getBounds().pad(0.1));
+
+      if (Object.keys(markersRef.current).length > 0 && mapInstance.current.getZoom() < 6) {
+        const group = L.featureGroup(Object.values(markersRef.current));
+        mapInstance.current.fitBounds(group.getBounds().pad(0.1));
       }
     })();
-  }, [staff]);
+  }, [filtered]);
 
-  const filtered = staff.filter((s) => {
-    const matchesQuery = s.name.toLowerCase().includes(q.toLowerCase());
-    const matchesBranch = selectedBranchId === "all" || (s as any).branch_id === selectedBranchId;
-    return matchesQuery && matchesBranch;
-  });
-
-  // Update markers visibility
   useEffect(() => {
-    if (!mapInstance.current) return;
-    const filteredIds = new Set(filtered.map(s => s.id));
-    Object.entries(markersRef.current).forEach(([id, marker]) => {
-        if (filteredIds.has(id)) {
-            marker.addTo(mapInstance.current);
-        } else {
-            marker.remove();
+    if (typeof window === "undefined" || !mapInstance.current) return;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      const visibleBranches = branches.filter((branch) => {
+        if (selectedBranchId !== "all" && branch.id !== selectedBranchId) return false;
+        return typeof branch.lat === "number" && typeof branch.lng === "number";
+      });
+      const visibleIds = new Set(visibleBranches.map((branch) => branch.id));
+
+      Object.entries(branchMarkersRef.current).forEach(([id, marker]) => {
+        if (!visibleIds.has(id)) {
+          marker.remove();
+          delete branchMarkersRef.current[id];
         }
-    });
-  }, [filtered.length, selectedBranchId, q]);
+      });
+
+      visibleBranches.forEach((branch) => {
+        const hasOverlappingStaff = filtered.some(
+          (staffMember) =>
+            staffMember.lat !== null &&
+            staffMember.lng !== null &&
+            Math.abs(staffMember.lat - Number(branch.lat)) < 0.00005 &&
+            Math.abs(staffMember.lng - Number(branch.lng)) < 0.00005
+        );
+        const markerLat = hasOverlappingStaff ? Number(branch.lat) + 0.00018 : Number(branch.lat);
+        const markerLng = hasOverlappingStaff ? Number(branch.lng) + 0.00018 : Number(branch.lng);
+        const html = `
+          <div class="relative flex flex-col items-center">
+            <div style="background:#1d4ed8;width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:white;border:3px solid white;box-shadow:0 10px 24px rgba(29,78,216,0.32);font-size:12px;font-weight:800;letter-spacing:0.08em;">
+              BR
+            </div>
+            <div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:10px solid #1d4ed8;margin-top:-2px;"></div>
+          </div>
+        `;
+        const icon = L.divIcon({
+          html,
+          className: "",
+          iconSize: [40, 50],
+          iconAnchor: [20, 46],
+        });
+
+        const popupContent = `
+          <div class="p-2 min-w-[150px]">
+            <div class="text-sm font-semibold">${branch.name}</div>
+            <div class="text-xs text-muted-foreground">${branch.city}, ${branch.country}</div>
+            <div class="mt-2 text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Branch Location</div>
+          </div>
+        `;
+
+        const existing = branchMarkersRef.current[branch.id];
+        if (existing) {
+          existing.setLatLng([markerLat, markerLng]);
+          existing.setPopupContent(popupContent);
+          existing.setZIndexOffset(1200);
+        } else {
+          const marker = L.marker([markerLat, markerLng], { icon, zIndexOffset: 1200 }).addTo(mapInstance.current);
+          marker.bindPopup(popupContent);
+          branchMarkersRef.current[branch.id] = marker;
+        }
+      });
+    })();
+  }, [branches, selectedBranchId]);
 
   const counts = {
     active: filtered.filter((s) => s.status === "active").length,
@@ -332,6 +394,8 @@ function FieldTrackingPage() {
           <ul className="max-h-[492px] overflow-y-auto">
             {loading ? (
                <div className="p-10 text-center text-muted-foreground text-xs">Loading staff...</div>
+            ) : filtered.length === 0 ? (
+               <div className="p-10 text-center text-muted-foreground text-xs">No live staff data for this branch yet.</div>
             ) : filtered.map((s) => (
               <li key={s.id}>
                 <button
@@ -378,7 +442,10 @@ function PillStat({ label, value, cls }: { label: string; value: number; cls: st
   );
 }
 
-function BatteryDot({ v }: { v: number }) {
+function BatteryDot({ v }: { v: number | null }) {
+  if (v === null) {
+    return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground"><Battery className="h-3 w-3" />N/A</span>;
+  }
   const tone = v > 50 ? "text-success" : v > 20 ? "text-warning" : "text-destructive";
   return <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold", tone)}><Battery className="h-3 w-3" />{v}%</span>;
 }

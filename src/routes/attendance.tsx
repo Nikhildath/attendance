@@ -537,7 +537,7 @@ function AttendancePage() {
             </div>
 
             {(state === "idle" || state === "camera") && (
-              <div className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-60 -translate-x-1/2 -translate-y-1/2 rounded-[45%] border-2 border-primary/60 shadow-elegant" />
+              <div className="pointer-events-none absolute left-1/2 top-1/2 h-80 w-68 -translate-x-1/2 -translate-y-1/2 rounded-[45%] border-2 border-primary/60 shadow-elegant" />
             )}
             {state === "camera" && (
               <button
