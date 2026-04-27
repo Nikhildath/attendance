@@ -348,6 +348,27 @@ begin
 end;
 $$ language plpgsql security definer;
 
+-- RPC: Update Own Face Descriptor
+create or replace function public.update_own_face(
+    p_id uuid,
+    p_descriptor float8[]
+)
+returns boolean as $$
+begin
+  update public.profiles
+  set 
+    face_descriptor = to_jsonb(p_descriptor),
+    face_registered = true,
+    updated_at = now()
+  where id = p_id;
+
+  return true;
+end;
+$$ language plpgsql security definer;
+
+grant execute on function public.update_own_face(uuid, float8[])
+to postgres, anon, authenticated, service_role;
+
 -- Trigger: Handle New User from Auth
 create or replace function public.handle_new_user()
 returns trigger as $$
