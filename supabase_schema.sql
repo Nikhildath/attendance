@@ -33,7 +33,7 @@ create table public.profiles (
     face_registered boolean default false,
     face_descriptor jsonb,
     password text, -- For custom login bypass if needed
-    branch_id uuid references public.branches(id),
+    branch_id uuid references public.branches(id) on delete set null,
     created_at timestamptz default now(),
     updated_at timestamptz default now()
 );
