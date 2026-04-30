@@ -348,38 +348,42 @@
       p_name text default null
   )
   returns boolean as $$
+  declare
+    v_profile_id uuid;
   begin
-    -- Ensure profile exists before tracking to prevent FK violations
-    insert into public.profiles (id, email, name, role)
-    values (
-      p_id, 
-      coalesce(p_email, p_id::text || '@pending.local'), 
-      coalesce(p_name, 'Pending User'), 
-      'Employee'
-    )
-    on conflict (id) do nothing;
+    -- 1. Resolve identity: Check if profile exists by ID or Email
+    select id into v_profile_id from public.profiles where id = p_id;
+    
+    if v_profile_id is null and p_email is not null then
+      select id into v_profile_id from public.profiles where email = p_email;
+    end if;
 
+    -- 2. Create profile if it absolutely doesn't exist yet
+    if v_profile_id is null then
+      insert into public.profiles (id, email, name, role)
+      values (
+        p_id, 
+        coalesce(p_email, p_id::text || '@pending.local'), 
+        coalesce(p_name, 'Pending User'), 
+        'Employee'
+      )
+      on conflict (id) do nothing
+      returning id into v_profile_id;
+      
+      -- Fallback: if ID conflict happened but we missed it
+      if v_profile_id is null then
+          select id into v_profile_id from public.profiles where id = p_id;
+      end if;
+    end if;
+
+    -- 3. Upsert tracking data using the resolved ID (prevents FK errors)
     insert into public.staff_tracking (
-      user_id,
-      lat,
-      lng,
-      battery,
-      speed_kmh,
-      accuracy,
-      current_task,
-      status,
-      last_update
+      user_id, lat, lng, battery, speed_kmh, accuracy, current_task, status, last_update
     )
     values (
-      p_id,
-      p_lat,
-      p_lng,
-      coalesce(p_battery, 100),
-      coalesce(p_speed_kmh, 0),
-      coalesce(p_accuracy, 0),
-      p_current_task,
-      coalesce(p_status, 'active'),
-      now()
+      v_profile_id, p_lat, p_lng, coalesce(p_battery, 100), 
+      coalesce(p_speed_kmh, 0), coalesce(p_accuracy, 0), 
+      p_current_task, coalesce(p_status, 'active'), now()
     )
     on conflict (user_id) do update set
       lat = excluded.lat,
