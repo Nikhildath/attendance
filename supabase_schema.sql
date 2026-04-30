@@ -1,6 +1,13 @@
   -- Attendly Pro: Full Database Schema
   -- Use this file to set up a new Supabase project.
 
+  -- 0. CLEANUP: Drop old overloaded function signatures to prevent PostgREST ambiguity errors.
+  --    These were created incrementally and must be removed before the canonical versions are applied.
+  DROP FUNCTION IF EXISTS public.admin_update_profile(uuid, uuid, text, text, text, text, boolean, uuid);
+  DROP FUNCTION IF EXISTS public.admin_update_profile(uuid, uuid, text, text, text, text, boolean, uuid, date, date);
+  DROP FUNCTION IF EXISTS public.admin_insert_profile(uuid, uuid, text, text, text, text, text);
+  DROP FUNCTION IF EXISTS public.admin_insert_profile(uuid, uuid, text, text, text, text, text, date, date);
+
   -- 1. EXTENSIONS
   create extension if not exists "uuid-ossp";
 

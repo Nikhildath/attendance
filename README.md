@@ -93,6 +93,10 @@
 | **Maps & AI** | Leaflet.js, face-api.js |
 | **Hosting** | Render / Netlify (CI/CD Optimized) |
 
+## Recent Updates & Fixes (May 2026)
+*   **Database Overloading Fix**: Cleaned up the Supabase database to remove outdated, overloaded versions of `admin_update_profile` and `admin_insert_profile`. This resolves an issue where updating Date of Birth (DOB) and Joining Date fields on the admin panel was silently failing due to PostgREST ambiguity errors.
+*   **Robust Date Handling**: Updated the frontend to explicitly map empty strings from date inputs to SQL `null` values, preventing Postgres type-casting errors.
+
 ---
 
 ## 🚀 Quick Start Guide
