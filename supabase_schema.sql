@@ -264,7 +264,8 @@
       p_face boolean,
       p_branch_id uuid default null,
       p_dob date default null,
-      p_joining_date date default null
+      p_joining_date date default null,
+      p_avatar_url text default null
   )
   returns void as $$
   BEGIN
@@ -279,6 +280,7 @@
         branch_id = p_branch_id,
         dob = p_dob,
         joining_date = p_joining_date,
+        avatar_url = p_avatar_url,
         updated_at = NOW()
       WHERE id = p_id;
     ELSE
@@ -309,7 +311,8 @@
       p_dept text,
       p_password text,
       p_dob date default null,
-      p_joining_date date default null
+      p_joining_date date default null,
+      p_avatar_url text default null
   )
   returns jsonb as $$
   DECLARE
@@ -339,8 +342,8 @@
     END IF;
 
     -- Now safely insert the profile
-    INSERT INTO public.profiles (id, email, name, role, dept, password, dob, joining_date)
-    VALUES (p_id, p_email, p_name, p_role, p_dept, p_password, p_dob, p_joining_date)
+    INSERT INTO public.profiles (id, email, name, role, dept, password, dob, joining_date, avatar_url)
+    VALUES (p_id, p_email, p_name, p_role, p_dept, p_password, p_dob, p_joining_date, p_avatar_url)
     ON CONFLICT (id) DO UPDATE SET
       name = EXCLUDED.name,
       role = EXCLUDED.role,
@@ -348,6 +351,7 @@
       password = EXCLUDED.password,
       dob = EXCLUDED.dob,
       joining_date = EXCLUDED.joining_date,
+      avatar_url = EXCLUDED.avatar_url,
       updated_at = NOW();
 
     RETURN jsonb_build_object('success', true, 'id', p_id);
