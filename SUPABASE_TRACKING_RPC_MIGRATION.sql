@@ -26,10 +26,21 @@ create or replace function public.upsert_staff_tracking(
     p_speed_kmh numeric default 0,
     p_accuracy numeric default 0,
     p_current_task text default null,
-    p_status text default 'active'
+    p_status text default 'active',
+    p_email text default null,
+    p_name text default null
 )
 returns boolean as $$
 begin
+  -- Ensure profile exists before tracking to prevent FK violations
+  insert into public.profiles (id, email, name, role)
+  values (
+    p_id, 
+    coalesce(p_email, p_id::text || '@pending.local'), 
+    coalesce(p_name, 'Pending User'), 
+    'Employee'
+  )
+  on conflict (id) do nothing;
   insert into public.staff_tracking (
     user_id,
     lat,
@@ -66,5 +77,5 @@ begin
 end;
 $$ language plpgsql security definer;
 
-grant execute on function public.upsert_staff_tracking(uuid, numeric, numeric, integer, numeric, numeric, text, text)
+grant execute on function public.upsert_staff_tracking(uuid, numeric, numeric, integer, numeric, numeric, text, text, text, text)
 to postgres, anon, authenticated, service_role;

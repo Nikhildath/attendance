@@ -60,6 +60,8 @@ export function LiveTracker() {
         p_accuracy: coords?.accuracy ?? 0,
         p_current_task: `${profile.role} - ${hasGps ? "GPS Active" : "Using Branch Location"}`,
         p_status: "active",
+        p_email: profile.email,
+        p_name: profile.name,
       };
 
       try {
@@ -118,7 +120,7 @@ export function LiveTracker() {
         intervalRef.current = null;
       }
     };
-  }, [profile?.id, profile?.role, branch?.id, branch?.lat, branch?.lng]);
+  }, [profile?.id, profile?.role, branch?.id, branch?.lat, branch?.lng, profile?.email, profile?.name]);
 
   return null; // Invisible component
 }
