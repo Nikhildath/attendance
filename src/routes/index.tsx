@@ -151,7 +151,7 @@ function Dashboard() {
           {announcements.map(a => (
             <div key={a.id} className={cn(
               "relative overflow-hidden rounded-[1.5rem] border p-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500",
-              a.type === 'critical' ? "border-destructive/30 bg-destructive/10 text-destructive-foreground" :
+              a.type === 'critical' ? "border-destructive/30 bg-destructive/10" :
               a.type === 'warning' ? "border-warning/30 bg-warning/10" :
               a.type === 'success' ? "border-success/30 bg-success/10" :
               "border-primary/20 bg-primary/10"
@@ -159,8 +159,8 @@ function Dashboard() {
               <div className="flex items-start gap-4">
                 <div className={cn(
                   "mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                  a.type === 'critical' ? "bg-destructive/20" :
-                  a.type === 'warning' ? "bg-warning/20 text-warning-foreground" :
+                  a.type === 'critical' ? "bg-destructive/20 text-destructive" :
+                  a.type === 'warning' ? "bg-warning/20 text-warning" :
                   a.type === 'success' ? "bg-success/20 text-success" :
                   "bg-primary/20 text-primary"
                 )}>
