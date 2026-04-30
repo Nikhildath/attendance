@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CalendarCheck, CalendarX, Clock, Plane, CalendarDays, Camera, Bell, ArrowRight } from "lucide-react";
+import { CalendarCheck, CalendarX, Clock, Plane, CalendarDays, Camera, Bell, ArrowRight, Wallet } from "lucide-react";
 import { HeroBanner } from "@/components/common/Illustrations";
 import { StatCard } from "@/components/common/StatCard";
+import { StatusBadge } from "@/components/common/StatusBadge";
 import { WeeklyTrendChart } from "@/components/charts/Charts";
 import { MonthCalendar } from "@/components/calendar/MonthCalendar";
 import { statusMeta } from "@/lib/mock-data";
@@ -111,10 +112,23 @@ function Dashboard() {
     : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20 md:pb-0">
       <HeroBanner name={profile?.name || "User"} attendanceRate={attendanceRate} />
 
-      <div className="flex flex-wrap items-center gap-4 rounded-[2rem] border border-border/50 bg-card/60 backdrop-blur-sm p-6 shadow-sm group transition-all hover:shadow-elegant">
+      {/* Quick Actions for Mobile */}
+      <div className="md:hidden">
+        <div className="flex items-center justify-between mb-4 px-1">
+          <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/70">Quick Access</h3>
+        </div>
+        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+          <QuickActionLink to="/attendance" icon={Camera} label="Punch" color="bg-primary/10 text-primary" />
+          <QuickActionLink to="/leaves" icon={Plane} label="Leaves" color="bg-info/10 text-info" />
+          <QuickActionLink to="/calendar" icon={CalendarDays} label="Calendar" color="bg-success/10 text-success" />
+          <QuickActionLink to="/payroll" icon={Wallet} label="Payroll" color="bg-warning/10 text-warning-foreground" />
+        </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 rounded-[2rem] border border-border/50 bg-card/60 backdrop-blur-sm p-4 md:p-6 shadow-sm group transition-all hover:shadow-elegant">
         <div className="flex items-center gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20 group-hover:scale-110 transition-transform">
             <Camera className="h-7 w-7" />
@@ -126,7 +140,7 @@ function Dashboard() {
         </div>
         <Link
           to="/attendance"
-          className="ml-auto inline-flex items-center gap-2 rounded-2xl gradient-primary px-8 py-4 text-sm font-black text-primary-foreground shadow-elegant transition-all hover:-translate-y-1 hover:brightness-110 active:scale-95"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl gradient-primary px-6 md:px-8 py-3 md:py-4 text-sm font-black text-primary-foreground shadow-elegant transition-all hover:-translate-y-1 hover:brightness-110 active:scale-95"
         >
           Mark Attendance
           <ArrowRight className="h-5 w-5" />
@@ -142,7 +156,7 @@ function Dashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-8 shadow-sm">
+        <div className="lg:col-span-2 rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-5 md:p-8 shadow-sm">
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h2 className="text-xl font-black tracking-tight">Attendance Trend</h2>
@@ -157,7 +171,7 @@ function Dashboard() {
           <WeeklyTrendChart data={weeklyData} />
         </div>
 
-        <div className="rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-8 shadow-sm">
+        <div className="rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-5 md:p-8 shadow-sm">
           <div className="mb-6 flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-xl">
               <Bell className="h-5 w-5 text-primary" />
@@ -173,28 +187,34 @@ function Dashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-8 shadow-sm">
+        <div className="lg:col-span-2 rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-5 md:p-8 shadow-sm">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-black tracking-tight">Recent Activity</h2>
             <Link to="/attendance" className="text-xs font-black text-primary uppercase tracking-[0.15em] hover:underline underline-offset-4">View History</Link>
           </div>
-          <ol className="relative space-y-6 border-l-2 border-border/30 pl-6 ml-2">
+          <div className="space-y-4">
             {recentActivity.length === 0 ? (
-              <p translate="no" className="text-xs font-bold text-muted-foreground uppercase tracking-widest py-10 text-center">No recent records</p>
-            ) : recentActivity.map((a) => {
-              const meta = statusMeta[a.status] || statusMeta.none;
-              return (
-                <li key={a.id} className="relative group/item">
-                  <span className={cn("absolute -left-[33px] top-1.5 h-4 w-4 rounded-full border-4 border-card bg-card transition-transform group-hover/item:scale-125", meta.dot)} />
-                  <div className="flex items-center justify-between">
-                    <div className="text-[15px] font-black tracking-tight">{a.action}</div>
-                    <span className={cn("rounded-full border border-border/50 px-3 py-1 text-[10px] font-black uppercase tracking-widest", meta.color)}>{meta.label}</span>
+              <div className="text-center py-10 border border-dashed rounded-2xl border-border/50">
+                <p className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest">No recent records</p>
+              </div>
+            ) : recentActivity.map((a) => (
+              <div key={a.id} className="flex items-center justify-between rounded-2xl bg-muted/20 p-4 transition-all hover:bg-muted/30">
+                <div className="flex items-center gap-4">
+                  <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", 
+                    a.status === 'present' ? "bg-success/10 text-success" : 
+                    a.status === 'late' ? "bg-warning/10 text-warning-foreground" : 
+                    "bg-destructive/10 text-destructive")}>
+                    <Clock className="h-5 w-5" />
                   </div>
-                  <div className="text-xs font-bold text-muted-foreground/60 mt-1">{a.time}</div>
-                </li>
-              );
-            })}
-          </ol>
+                  <div>
+                    <div className="text-sm font-black">{a.action}</div>
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{a.time}</div>
+                  </div>
+                </div>
+                <StatusBadge status={a.status} />
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="rounded-[2rem] overflow-hidden border border-border/50 shadow-sm">
@@ -202,5 +222,16 @@ function Dashboard() {
         </div>
       </div>
     </div>
+  );
+}
+
+function QuickActionLink({ to, icon: Icon, label, color }: { to: string; icon: any; label: string; color: string }) {
+  return (
+    <Link to={to} className="flex flex-col items-center gap-2 min-w-[72px] group">
+      <div className={cn("flex h-14 w-14 items-center justify-center rounded-2xl border border-border/30 backdrop-blur-sm shadow-sm transition-all group-active:scale-90 group-hover:shadow-md", color)}>
+        <Icon className="h-6 w-6" />
+      </div>
+      <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">{label}</span>
+    </Link>
   );
 }

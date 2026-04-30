@@ -23,17 +23,18 @@ export function StatCard({
     info: "bg-info/15 text-info",
   };
   return (
-    <div className="group relative overflow-hidden rounded-[1.5rem] border border-border/50 bg-card/60 backdrop-blur-sm p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-elegant hover:bg-card">
+    <div className="group relative overflow-hidden rounded-[1.5rem] border border-border/50 bg-card/60 backdrop-blur-md p-4 md:p-6 shadow-sm transition-all duration-500 hover:-translate-y-1 hover:shadow-elegant hover:bg-card">
       {/* Background Decor */}
-      <div className={cn("absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-[0.03] transition-opacity group-hover:opacity-[0.06]", toneMap[tone].split(' ')[0])} />
+      <div className={cn("absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-[0.05] transition-opacity group-hover:opacity-[0.1] blur-xl", toneMap[tone].split(' ')[0])} />
+      <div className={cn("absolute -left-12 -bottom-12 h-24 w-24 rounded-full opacity-[0.03] blur-2xl", toneMap[tone].split(' ')[0])} />
       
       <div className="flex items-start justify-between relative z-10">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/80">{label}</p>
-          <p className="mt-2 text-4xl font-black tracking-tighter">{value}</p>
+          <p className="mt-1 md:mt-2 text-2xl md:text-4xl font-black tracking-tighter">{value}</p>
         </div>
-        <div className={cn("flex h-12 w-12 items-center justify-center rounded-2xl shadow-sm transition-transform group-hover:scale-110", toneMap[tone])}>
-          <Icon className="h-6 w-6" />
+        <div className={cn("flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-xl md:rounded-2xl shadow-sm transition-transform group-hover:scale-110", toneMap[tone])}>
+          <Icon className="h-5 w-5 md:h-6 md:w-6" />
         </div>
       </div>
       {trend && (

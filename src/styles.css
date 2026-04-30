@@ -172,4 +172,11 @@
     background: color-mix(in oklab, var(--card) 70%, transparent);
     backdrop-filter: blur(12px);
   }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }

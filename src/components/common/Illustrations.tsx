@@ -15,26 +15,26 @@ export function HeroBanner({ name, attendanceRate }: { name: string; attendanceR
   const rate = attendanceRate ?? 0;
 
   return (
-    <div className="relative overflow-hidden rounded-[2rem] gradient-hero p-8 text-primary-foreground shadow-elegant md:p-12 transition-transform hover:scale-[1.01] duration-500">
+    <div className="relative overflow-hidden rounded-[2.5rem] gradient-hero p-8 md:p-12 text-primary-foreground shadow-elegant md:hover:scale-[1.01] transition-transform duration-700">
       <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-        <div className="space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-black uppercase tracking-widest backdrop-blur-md">
-            <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+        <div className="space-y-6">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] backdrop-blur-xl border border-white/10">
+            <span className="h-2 w-2 rounded-full bg-white animate-ping" />
             {dateStr}
           </div>
-          <h1 className="text-4xl font-black tracking-tighter md:text-5xl">
-            {greet}, {name} 👋
+          <h1 className="text-4xl font-black tracking-tighter md:text-6xl leading-[0.9]">
+            {greet}, <br className="md:hidden" /> {name} 👋
           </h1>
-          <p className="max-w-xl text-lg font-medium opacity-90 leading-relaxed">
-            You've maintained a <strong className="text-white underline underline-offset-4 decoration-2">{Math.round(rate)}% attendance rate</strong> this month. Keep the streak alive — mark your attendance to start the day.
+          <p className="max-w-xl text-base md:text-lg font-medium opacity-90 leading-relaxed">
+            You've maintained a <strong className="text-white underline underline-offset-8 decoration-4 decoration-white/30">{Math.round(rate)}% attendance rate</strong> this month.
           </p>
         </div>
-        <div className="hidden lg:block scale-125 translate-x-4">
+        <div className="hidden lg:block scale-150 translate-x-10">
           <Illustration />
         </div>
       </div>
-      <div className="pointer-events-none absolute -right-10 -top-10 h-80 w-80 rounded-full bg-white/20 blur-[100px]" />
-      <div className="pointer-events-none absolute -bottom-20 -left-10 h-64 w-64 rounded-full bg-primary-glow/20 blur-[80px]" />
+      <div className="pointer-events-none absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white/10 blur-[120px] animate-pulse" />
+      <div className="pointer-events-none absolute -bottom-40 -left-20 h-80 w-80 rounded-full bg-primary-glow/30 blur-[100px]" />
     </div>
   );
 }

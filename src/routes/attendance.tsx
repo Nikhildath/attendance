@@ -359,6 +359,57 @@ function AttendancePage() {
     }
   }
 
+  async function registerBiometrics() {
+    if (!profile?.id) return;
+    setState("scanning");
+    try {
+      if (!window.PublicKeyCredential) {
+        throw new Error("Biometric hardware not detected on this device.");
+      }
+
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { name: "Attendly Pro", id: window.location.hostname },
+          user: {
+            id: Uint8Array.from(profile.id.replace(/-/g, ''), c => c.charCodeAt(0)),
+            name: profile.email,
+            displayName: profile.name
+          },
+          pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }],
+          authenticatorSelection: { 
+            userVerification: "required",
+            residentKey: "preferred"
+          },
+          timeout: 60000
+        }
+      });
+
+      if (credential) {
+        const { error } = await supabase
+          .from("profiles")
+          .update({ 
+            biometric_registered: true,
+            biometric_credential_id: (credential as any).id
+          })
+          .eq("id", profile.id);
+
+        if (error) throw error;
+        
+        toast.success("Biometrics registered successfully!");
+        await refreshProfile();
+      }
+    } catch (err: any) {
+      console.error("Registration error:", err);
+      toast.error(err.message || "Biometric registration failed.");
+    } finally {
+      setState("idle");
+    }
+  }
+
   async function mark() {
     if (!current) return toast.error("Please select a branch first");
     setErrorMsg("");
@@ -370,34 +421,36 @@ function AttendancePage() {
     }
 
     if (punchMode === "mobile") {
+      if (!(profile as any)?.biometric_registered) {
+        toast.info("Please register your biometrics first.");
+        return;
+      }
+
       setState("scanning");
       try {
-        // Trigger native OS biometric prompt if available
         if (window.PublicKeyCredential) {
           const credential = await navigator.credentials.get({
             publicKey: {
               challenge: Uint8Array.from("secure-punch", c => c.charCodeAt(0)),
-              allowCredentials: [],
+              allowCredentials: [{
+                id: Uint8Array.from((profile as any).biometric_credential_id || "", c => c.charCodeAt(0)),
+                type: 'public-key'
+              }],
               userVerification: "required"
             }
           });
           
           if (!credential) {
-            toast.error("Biometric verification failed.");
-            setState("idle");
-            return;
+            throw new Error("Biometric verification failed.");
           }
         } else {
-            // Fallback for browsers without WebAuthn
-            toast.error("Biometric hardware not detected.");
-            setState("idle");
-            return;
+            throw new Error("Biometric hardware not detected.");
         }
         
-        await new Promise(res => setTimeout(res, 1000));
-      } catch (e) {
+        await new Promise(res => setTimeout(res, 800));
+      } catch (e: any) {
         console.error("Biometric error:", e);
-        toast.error("Verification cancelled or failed.");
+        toast.error(e.message || "Verification failed.");
         setState("idle");
         return;
       }
@@ -422,15 +475,15 @@ function AttendancePage() {
         title="Mark Attendance"
         subtitle="Real-time verification with geo-fence protection"
         actions={
-          <div className="flex rounded-lg border bg-card p-1 shadow-card">
+          <div className="flex rounded-xl border border-border/50 bg-muted/30 p-1 shadow-sm">
             {(["web","mobile"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setPunchMode(m)}
-                className={cn("rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-colors",
-                  punchMode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
+                className={cn("rounded-lg px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all",
+                  punchMode === m ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
               >
-                {m === "web" ? "Web Punch" : "Mobile Punch"}
+                {m === "web" ? "Web" : "Mobile"}
               </button>
             ))}
           </div>
@@ -438,7 +491,7 @@ function AttendancePage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-        <div className="rounded-2xl border bg-card p-6 shadow-card">
+        <div className="rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-5 md:p-8 shadow-sm transition-all hover:shadow-elegant">
           {(!modelsLoaded && profile?.role === "Admin") && (
             <div className="mb-4 rounded-lg bg-warning/10 p-3 text-[11px] text-warning-foreground border border-warning/30 flex items-center justify-between">
               <span>⚠️ Models failing to load? You can bypass for testing.</span>
@@ -477,36 +530,41 @@ function AttendancePage() {
                   <div className="relative group cursor-pointer" onClick={mark}>
                     <div className="absolute -inset-1 rounded-full bg-primary/20 animate-ping opacity-75" />
                     <div className="absolute -inset-1 rounded-[2.5rem] bg-gradient-to-tr from-primary to-info opacity-75 blur transition duration-500 group-hover:opacity-100" />
-                    <div className="relative flex h-[18rem] w-[14rem] flex-col items-center justify-center rounded-[2rem] bg-card p-6 shadow-2xl">
-                        <div className="mb-6 relative">
-                            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-                            <div className="relative h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center border-2 border-primary/20">
-                                <div className="h-12 w-12 text-primary opacity-80">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M2 12C2 12 5 7 12 7C19 7 22 12 22 12C22 12 19 17 12 17C5 17 2 12 2 12Z" className="opacity-20" />
-                                        <circle cx="12" cy="12" r="3" className="opacity-20" />
-                                        <path d="M12 12V12.01M12 15C10.3431 15 9 13.6569 9 12M15 12C15 13.6569 13.6569 15 12 15M18 12C18 15.3137 15.3137 18 12 18M6 12C6 15.3137 8.68629 18 12 18" />
-                                        <path d="M12 9C13.6569 9 15 10.3431 15 12M9 12C9 10.3431 10.3431 9 12 9M12 6C15.3137 6 18 8.68629 18 12M6 12C6 8.68629 8.68629 6 12 6M12 3C16.9706 3 21 7.02944 21 12M3 12C3 7.02944 7.02944 3 12 3" />
-                                    </svg>
-                                </div>
+                    <div className="relative flex h-[20rem] w-[15rem] flex-col items-center justify-center rounded-[2.5rem] bg-card p-6 shadow-2xl overflow-hidden border border-border/50">
+                        {/* Futuristic Scanning Line */}
+                        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_15px_var(--color-primary)] animate-scan-line z-20" />
+                        
+                        <div className="mb-8 relative z-10">
+                            <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full animate-pulse" />
+                            <div className="relative h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center border-2 border-primary/30">
+                                <ScanFace className="h-12 w-12 text-primary" />
                             </div>
                         </div>
-                        <div className="text-center">
-                            <div className="text-xs font-bold text-primary uppercase tracking-[0.2em]">Touch ID Ready</div>
-                            <div className="mt-1 text-[10px] font-bold text-foreground">ID: ATD-{profile?.name?.split(' ')[0].toUpperCase() || "USER"}</div>
-                            <div className="mt-2 text-[9px] text-muted-foreground animate-pulse">Tap scanner to verify</div>
+                        <div className="text-center relative z-10">
+                            <div className="text-sm font-black text-primary uppercase tracking-[0.25em]">Biometric ID</div>
+                            <div className="mt-2 text-[11px] font-black text-foreground uppercase tracking-widest bg-muted/50 px-3 py-1 rounded-full border border-border/50">
+                              {profile?.name?.split(' ')[0] || "USER"}-{profile?.id?.slice(0, 4).toUpperCase()}
+                            </div>
+                            <div className="mt-6 flex flex-col items-center gap-4">
+                              {!(profile as any)?.biometric_registered ? (
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); registerBiometrics(); }}
+                                  className="pointer-events-auto rounded-full bg-primary px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-primary-foreground shadow-elegant hover:scale-105 active:scale-95 transition-all"
+                                >
+                                  Register Biometrics
+                                </button>
+                              ) : (
+                                <>
+                                  <div className="flex gap-1">
+                                    {[1,2,3,4,5].map(i => <div key={i} className="h-1 w-4 rounded-full bg-primary/20 animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />)}
+                                  </div>
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tap to verify identity</span>
+                                </>
+                              )}
+                            </div>
                         </div>
                     </div>
                   </div>
-                  
-                  <button 
-                    onClick={mark}
-                    disabled={branchLoading || geo === "denied"}
-                    className="flex items-center gap-2 rounded-full bg-primary px-8 py-3 text-sm font-bold text-primary-foreground shadow-elegant hover:scale-105 active:scale-95 transition-all"
-                  >
-                    <ShieldCheck className="h-4 w-4" />
-                    Verify Biometrics
-                  </button>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-3 animate-in fade-in zoom-in duration-300">
@@ -602,7 +660,7 @@ function AttendancePage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border bg-card p-6 shadow-card">
+        <div className="rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-5 md:p-8 shadow-sm transition-all hover:shadow-elegant">
           <h2 className="text-lg font-semibold">Today</h2>
           <div className="mt-4 grid grid-cols-2 gap-3 text-center">
             <div className="rounded-xl border bg-background/40 p-4">

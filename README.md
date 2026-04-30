@@ -17,6 +17,7 @@
 ### 📡 Real-Time Field Tracking & Geospatial Intelligence
 *Complete visibility into your mobile workforce.*
 - **Live Interactive Maps**: The Field Tracking dashboard uses Leaflet to plot staff locations on a live map in real-time.
+- **Smart Zoom & Interaction**: Clicking an employee's name in the tracker list or their marker on the map instantly centers and zooms the view for precise tracking.
 - **Background Synchronization**: High-frequency GPS updates (every 30 seconds) run silently in the background while the app is open.
 - **Device Health Telemetry**: Managers can see not just where their staff are, but also their device battery level and speed.
 - **Smart Geofencing fallback**: If GPS is unavailable, the system intelligently defaults to the user's assigned Branch coordinates to ensure continuity.
@@ -53,6 +54,7 @@
 ### 📊 Comprehensive Reporting & Dashboards
 *Data-driven decision making at a glance.*
 - **Executive Dashboard**: High-level metrics on today's attendance, pending approvals, and active field staff.
+- **Interactive Calendar Filters**: The visual calendar now supports granular filtering by attendance status (Present, Late, Absent, etc.) and by specific employee for Administrators.
 - **Exportable Reports**: Detailed tabular data ready for audit or export, filtering by date ranges, branches, and specific employees.
 
 ### 🛡️ Enterprise-Grade Security & Roles (RBAC)

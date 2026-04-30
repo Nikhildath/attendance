@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useSettings } from "@/lib/settings-context";
 import { useAuth } from "@/lib/auth";
+import { exportToCSV } from "@/lib/csv-utils";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/reports")({
   head: () => ({
@@ -165,72 +167,121 @@ function ReportsPage() {
     load();
   }, [tab]);
 
+  const handleExport = () => {
+    if (tab === "overview") {
+      toast.info("Export is available for Muster Roll and Payroll tabs.");
+      return;
+    }
+
+    if (tab === "muster") {
+      if (muster.length === 0) return toast.error("No muster data to export");
+      const exportData = muster.map(m => {
+        const rowData: any = { Name: m.name, Role: m.role };
+        m.row.forEach((status: string, i: number) => {
+          rowData[`Day ${i + 1}`] = status;
+        });
+        const p = m.row.filter((s: string) => s === "present").length;
+        const a = m.row.filter((s: string) => s === "absent").length;
+        rowData["Total Present"] = p;
+        rowData["Total Absent"] = a;
+        return rowData;
+      });
+      exportToCSV(exportData, "muster_roll_report");
+      toast.success("Muster roll exported successfully");
+    } else if (tab === "payroll") {
+      if (payslips.length === 0) return toast.error("No payroll data to export");
+      const exportData = payslips.map(p => ({
+        Employee: p.profiles?.name,
+        Month: p.month,
+        Basic: p.basic_pay,
+        HRA: p.hra,
+        Allowances: p.allowances,
+        Bonus: p.bonus,
+        Overtime: p.overtime_pay,
+        Fines: p.fines,
+        Tax: p.tax,
+        "Net Payable": p.net_payable,
+        Status: p.status
+      }));
+      exportToCSV(exportData, "payroll_summary_report");
+      toast.success("Payroll summary exported successfully");
+    }
+  };
+
   return (
     <div>
       <PageHeader
         title="Reports"
         subtitle="Attendance trends, muster roll and payroll reports"
         actions={
-          <button className="inline-flex items-center gap-2 rounded-xl border bg-card px-3 py-2 text-xs font-semibold hover:bg-accent">
+          <button 
+            onClick={handleExport}
+            className="inline-flex items-center gap-2 rounded-xl border bg-card px-3 py-2 text-xs font-semibold hover:bg-accent transition-all active:scale-95"
+          >
             <Download className="h-4 w-4" /> Export
           </button>
         }
       />
 
-      <div className="mb-4 inline-flex rounded-lg border bg-card p-1 shadow-card">
+      <div className="mb-8 flex overflow-x-auto pb-1 no-scrollbar md:inline-flex rounded-2xl border border-border/50 bg-muted/30 p-1.5 shadow-sm">
         {([["overview","Overview"],["muster","Muster Roll"],["payroll","Payroll"]] as const).map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} className={cn(
-            "rounded-md px-4 py-1.5 text-xs font-semibold transition-colors",
-            tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            "whitespace-nowrap rounded-xl px-6 py-2 text-[11px] font-black uppercase tracking-widest transition-all active:scale-95",
+            tab === k ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
           )}>{l}</button>
         ))}
       </div>
 
       {tab === "overview" && (
         <>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
             <StatCard label="Avg Attendance" value={stats.avgAttendance} icon={CalendarCheck} tone="success" />
             <StatCard label="On-Time Rate" value={stats.onTimeRate} icon={Clock} tone="info" />
             <StatCard label="Active Employees" value={stats.activeEmployees} icon={Users} tone="default" />
             <StatCard label="Productivity" value={stats.productivity} icon={TrendingUp} tone="warning" />
           </div>
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
-            <div className="rounded-xl border bg-card p-6 shadow-card">
-              <h2 className="text-lg font-semibold">Monthly Attendance Rate</h2>
-              <p className="text-xs text-muted-foreground">Company-wide attendance % per month</p>
-              <div className="mt-4"><MonthlyRateChart data={monthlyData} /></div>
+            <div className="rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-6 shadow-sm transition-all hover:shadow-elegant">
+              <h2 className="text-xl font-black tracking-tight">Monthly Attendance Rate</h2>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Company-wide attendance % per month</p>
+              <div className="mt-6"><MonthlyRateChart data={monthlyData} /></div>
             </div>
-            <div className="rounded-xl border bg-card p-6 shadow-card">
-              <h2 className="text-lg font-semibold">Departmental Attendance</h2>
-              <p className="text-xs text-muted-foreground">Recent engagement levels by department</p>
-              <div className="mt-4"><DepartmentBarChart data={deptData} /></div>
+            <div className="rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-6 shadow-sm transition-all hover:shadow-elegant">
+              <h2 className="text-xl font-black tracking-tight">Departmental Attendance</h2>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Recent engagement levels by department</p>
+              <div className="mt-6"><DepartmentBarChart data={deptData} /></div>
             </div>
           </div>
-          <div className="mt-6 rounded-xl border bg-card p-6 shadow-card">
-            <h2 className="text-lg font-semibold">Weekly Trend</h2>
-            <p className="text-xs text-muted-foreground">Present, late and absent counts across the week</p>
-            <WeeklyTrendChart data={weeklyData} />
+          <div className="mt-6 rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-6 shadow-sm transition-all hover:shadow-elegant">
+            <h2 className="text-xl font-black tracking-tight">Weekly Trend</h2>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Present, late and absent counts across the week</p>
+            <div className="mt-6">
+              <WeeklyTrendChart data={weeklyData} />
+            </div>
           </div>
         </>
       )}
 
       {tab === "muster" && (
-        <div className="overflow-hidden rounded-xl border bg-card shadow-card">
+        <div className="overflow-hidden rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm shadow-sm transition-all hover:shadow-elegant">
           <div className="flex items-center justify-between border-b p-5">
             <div>
               <h2 className="text-lg font-semibold">Muster Roll · {today.toLocaleString("en", { month: "long", year: "numeric" })}</h2>
               <p className="text-xs text-muted-foreground">Daily attendance per employee</p>
             </div>
-            <div className="flex items-center gap-3 text-[11px]">
+            <div className="flex items-center gap-3 text-[11px] overflow-x-auto no-scrollbar pb-1">
               {(["present","late","absent","leave","holiday","weekend"] as const).map((s) => (
-                <span key={s} className="inline-flex items-center gap-1.5">
+                <span key={s} className="inline-flex items-center gap-1.5 whitespace-nowrap">
                   <span className={cn("h-2.5 w-2.5 rounded-sm", statusMeta[s].dot)} />
                   {statusMeta[s].label}
                 </span>
               ))}
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="block md:hidden px-5 py-2 border-b bg-muted/20 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            ← Scroll horizontally to view all days →
+          </div>
+          <div className="overflow-x-auto no-scrollbar">
             <table className="w-full text-xs">
               <thead className="bg-muted/40 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 <tr>
@@ -274,7 +325,7 @@ function ReportsPage() {
       )}
 
       {tab === "payroll" && (
-        <div className="overflow-hidden rounded-xl border bg-card shadow-card">
+        <div className="overflow-hidden rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm shadow-sm transition-all hover:shadow-elegant">
           <div className="border-b p-5">
             <h2 className="text-lg font-semibold">Payroll Summary Report</h2>
             <p className="text-xs text-muted-foreground">Latest generated payslips overview</p>

@@ -243,7 +243,12 @@ function FieldTrackingPage() {
         } else {
           const m = L.marker([s.lat, s.lng], { icon }).addTo(mapInstance.current);
           m.bindPopup(popupContent);
-          m.on("click", () => setSelected(s));
+          m.on("click", () => {
+            setSelected(s);
+            if (s.lat !== null && s.lng !== null && mapInstance.current) {
+              mapInstance.current.setView([s.lat, s.lng], 16, { animate: true });
+            }
+          });
           markersRef.current[s.id] = m;
         }
       });
@@ -399,7 +404,12 @@ function FieldTrackingPage() {
             ) : filtered.map((s) => (
               <li key={s.id}>
                 <button
-                  onClick={() => setSelected(s)}
+                  onClick={() => {
+                    setSelected(s);
+                    if (s.lat !== null && s.lng !== null && mapInstance.current) {
+                      mapInstance.current.setView([s.lat, s.lng], 16, { animate: true });
+                    }
+                  }}
                   className={cn(
                     "flex w-full items-start gap-3 border-b p-4 text-left transition-colors hover:bg-accent/40",
                     selected?.id === s.id && "bg-accent/60"

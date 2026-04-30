@@ -270,7 +270,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   }, [profile?.id, profile?.role, profile?.face_registered, profile?.branch_id, current?.id, current?.name, current?.active_staff_count]);
 
   return (
-    <header className="sticky top-0 z-20 flex h-20 items-center gap-4 border-b border-border/50 bg-background/60 px-4 backdrop-blur-xl md:px-8">
+    <header className="sticky top-0 z-20 flex h-16 md:h-20 items-center gap-2 md:gap-4 border-b border-border/50 bg-background/60 px-3 md:px-8 backdrop-blur-xl">
       <Button variant="ghost" size="icon" className="md:hidden hover:bg-primary/10 hover:text-primary transition-colors" onClick={onMenu}>
         <Menu className="h-6 w-6" />
       </Button>
@@ -280,7 +280,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         <button
           onClick={() => setOpen((o) => !o)}
           disabled={branchLoading || !current}
-          className="flex items-center gap-3 rounded-[1.25rem] border border-border/50 bg-card/50 px-4 py-2.5 text-sm font-bold shadow-sm transition-all hover:border-primary/30 hover:bg-card hover:shadow-elegant disabled:opacity-50 group"
+          className="flex items-center gap-2 md:gap-3 rounded-xl md:rounded-[1.25rem] border border-border/50 bg-card/50 px-2.5 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-bold shadow-sm transition-all hover:border-primary/30 hover:bg-card hover:shadow-elegant disabled:opacity-50 group"
         >
           <div className="p-1.5 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
             <Building2 className="h-4 w-4 text-primary" />
@@ -370,7 +370,10 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         )}
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-1 md:gap-3">
+        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full md:hidden hover:bg-background">
+          <Search className="h-4 w-4" />
+        </Button>
         <div className="flex items-center gap-1 bg-muted/30 rounded-full p-1 border border-border/50">
           <Button variant="ghost" size="icon" onClick={toggle} className="h-9 w-9 rounded-full hover:bg-background hover:shadow-sm" aria-label="Toggle theme">
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -410,7 +413,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 rounded-full border border-border/50 bg-card/80 py-1.5 pl-1.5 pr-4 shadow-sm hover:shadow-md transition-shadow cursor-default">
+        <div className="flex items-center gap-2 md:gap-3 rounded-full border border-border/50 bg-card/80 p-1 md:py-1.5 md:pl-1.5 md:pr-4 shadow-sm hover:shadow-md transition-shadow cursor-default">
           <div className="ring-2 ring-primary/20 rounded-full overflow-hidden">
             <Avatar2D name={profile?.name ?? "Guest"} size={36} />
           </div>

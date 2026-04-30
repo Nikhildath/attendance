@@ -43,7 +43,17 @@ const cellTone: Record<AttendanceStatus, string> = {
   none: "opacity-50 hover:bg-muted/40",
 };
 
-export function MonthCalendar({ compact = false, onHolidaysChange }: { compact?: boolean; onHolidaysChange?: (h: { date: string; localName: string }[]) => void }) {
+export function MonthCalendar({ 
+  compact = false, 
+  onHolidaysChange,
+  userId,
+  statusFilter = "all"
+}: { 
+  compact?: boolean; 
+  onHolidaysChange?: (h: { date: string; localName: string }[]) => void;
+  userId?: string;
+  statusFilter?: string;
+}) {
   const { profile } = useAuth();
   const { settings } = useSettings();
   const [today, setToday] = useState<Date | null>(null);
@@ -67,7 +77,8 @@ export function MonthCalendar({ compact = false, onHolidaysChange }: { compact?:
 
   useEffect(() => {
     async function load() {
-      if (!profile?.id) return;
+      const targetId = userId || profile?.id;
+      if (!targetId) return;
       
       const start = new Date(cursor.y, cursor.m, 1).toISOString();
       const end = new Date(cursor.y, cursor.m + 1, 1).toISOString();
@@ -75,7 +86,7 @@ export function MonthCalendar({ compact = false, onHolidaysChange }: { compact?:
       const { data } = await supabase
         .from("attendance")
         .select("*")
-        .eq("user_id", profile.id)
+        .eq("user_id", targetId)
         .gte("created_at", start)
         .lt("created_at", end);
 
@@ -131,7 +142,7 @@ export function MonthCalendar({ compact = false, onHolidaysChange }: { compact?:
       const { data: leaves } = await supabase
         .from("leaves")
         .select("*")
-        .eq("user_id", profile.id)
+        .eq("user_id", targetId)
         .eq("status", "Approved")
         .gte("from_date", start.split('T')[0])
         .lte("to_date", end.split('T')[0]);
@@ -156,7 +167,7 @@ export function MonthCalendar({ compact = false, onHolidaysChange }: { compact?:
       setAttendanceData(map);
     }
     load();
-  }, [cursor, profile, holidays]); // Now reacts to holiday changes too!
+  }, [cursor, profile, holidays, userId]); // Now reacts to holiday changes too!
 
   useEffect(() => {
     if (onHolidaysChange) {
@@ -179,7 +190,7 @@ export function MonthCalendar({ compact = false, onHolidaysChange }: { compact?:
   };
 
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-card md:p-6">
+    <div className="bg-transparent">
       <div className="mb-5 flex items-center justify-between">
         <div>
           <h2 className={cn("font-bold tracking-tight", compact ? "text-base" : "text-xl")}>
@@ -218,7 +229,8 @@ export function MonthCalendar({ compact = false, onHolidaysChange }: { compact?:
         {DOW.map((d) => <div key={d} className="py-1">{d}</div>)}
       </div>
 
-      <div className="mt-1 grid grid-cols-7 gap-1.5">
+      <div className="mt-1 overflow-x-auto no-scrollbar pb-2">
+        <div className="grid min-w-[320px] grid-cols-7 gap-1.5">
         {cells.map((d, i) => {
           if (d === null) return <div key={i} className={compact ? "aspect-square" : "h-20"} />;
           const baseInfo = attendanceData[d] || { status: "none" };
@@ -227,6 +239,13 @@ export function MonthCalendar({ compact = false, onHolidaysChange }: { compact?:
             ? { ...baseInfo, status: "holiday" as AttendanceStatus, note: holiday.localName }
             : baseInfo;
           const isToday = !!today && cursor.y === today.getFullYear() && cursor.m === today.getMonth() && d === today.getDate();
+          
+          // Apply status filter
+          if (statusFilter !== "all" && info.status !== statusFilter) {
+            // If filtering, we don't hide the day, but we might want to grey it out or hide the status dot?
+            // Actually, usually filtering in a calendar means only showing those dots.
+          }
+
           const meta = statusMeta[info.status];
           
           return (
@@ -236,14 +255,17 @@ export function MonthCalendar({ compact = false, onHolidaysChange }: { compact?:
                 "group relative rounded-lg border bg-background/40 p-1.5 transition-all",
                 compact ? "aspect-square text-[11px]" : "h-20 text-xs",
                 cellTone[info.status],
-                isToday && "ring-2 ring-primary"
+                isToday && "ring-2 ring-primary",
+                (statusFilter !== "all" && info.status !== statusFilter) && "opacity-20 grayscale-[0.5]"
               )}
             >
               <div className="flex items-center justify-between">
                 <span className={cn("font-semibold", isToday && "text-primary")}>{d}</span>
-                <span className={cn("h-1.5 w-1.5 rounded-full", dotMap[info.status])} />
+                { (statusFilter === "all" || info.status === statusFilter) && (
+                  <span className={cn("h-1.5 w-1.5 rounded-full", dotMap[info.status])} />
+                )}
               </div>
-              {!compact && info.status !== "weekend" && info.status !== "none" && (
+              {!compact && info.status !== "weekend" && info.status !== "none" && (statusFilter === "all" || info.status === statusFilter) && (
                 <div className="mt-1 line-clamp-2 text-[10px] leading-tight text-muted-foreground">
                   {info.status === "holiday"
                     ? holiday?.localName ?? "Holiday"
@@ -256,6 +278,7 @@ export function MonthCalendar({ compact = false, onHolidaysChange }: { compact?:
           );
         })}
       </div>
+    </div>
 
       {!compact && (
         <div className="mt-5 flex flex-wrap items-center gap-3 border-t pt-4 text-xs">
