@@ -93,6 +93,12 @@ function AdminPage() {
   const updateProfile = async (id: string, updates: Partial<Profile>) => {
     const user = users.find(u => u.id === id);
     if (!user) return;
+    
+    // Prevent empty strings from being sent to Postgres date fields
+    const newDob = updates.dob === undefined ? user.dob : (updates.dob || null);
+    const newJoiningDate = updates.joining_date === undefined ? user.joining_date : (updates.joining_date || null);
+    const newAvatarUrl = updates.avatar_url === undefined ? user.avatar_url : updates.avatar_url;
+
     const { error } = await supabase.rpc('admin_update_profile', {
       caller_id: profile?.id,
       p_id: id,
@@ -102,15 +108,19 @@ function AdminPage() {
       p_password: updates.password || user.password || "",
       p_face: updates.face_registered ?? user.face_registered ?? false,
       p_branch_id: updates.branch_id === undefined ? user.branch_id : updates.branch_id,
-      p_dob: updates.dob === undefined ? user.dob : updates.dob,
-      p_joining_date: updates.joining_date === undefined ? user.joining_date : updates.joining_date
+      p_dob: newDob,
+      p_joining_date: newJoiningDate,
+      p_avatar_url: newAvatarUrl
     });
+    
     if (!error) {
       toast.success("User updated");
-      setUsers(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, ...updates, dob: newDob, joining_date: newJoiningDate, avatar_url: newAvatarUrl } : u));
       if (id === profile?.id) {
         refreshProfile();
       }
+    } else {
+      toast.error("Failed to update user: " + error.message);
     }
   };
 
@@ -136,7 +146,8 @@ function AdminPage() {
       p_dept: newUser.dept,
       p_password: newUser.password || "123456",
       p_dob: (newUser as any).dob || null,
-      p_joining_date: (newUser as any).joining_date || null
+      p_joining_date: (newUser as any).joining_date || null,
+      p_avatar_url: null
     });
     if (!error) {
       toast.success("User added", { id: "user" });
