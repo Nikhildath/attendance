@@ -10,6 +10,9 @@ import { toast } from "sonner";
 import { exportToCSV, parseCSV } from "@/lib/csv-utils";
 import { Avatar2D } from "@/components/common/Avatar2D";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import Cropper from "react-easy-crop";
+import getCroppedImg from "@/lib/cropImage";
+import { Camera, X } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -155,20 +158,99 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const inputClass = "h-10 w-full rounded-lg border bg-background px-3 text-sm";
 
 function ProfileSettings({ data, onChange }: { data: any; onChange: (d: any) => void }) {
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [isCropping, setIsCropping] = useState(false);
+
+  const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.addEventListener("load", () => setImageSrc(reader.result?.toString() || null));
+      reader.readAsDataURL(file);
+      setIsCropping(true);
+    }
+  };
+
+  const handleCropSave = async () => {
+    try {
+      if (imageSrc && croppedAreaPixels) {
+        const croppedImage = await getCroppedImg(imageSrc, croppedAreaPixels);
+        if (croppedImage) {
+          onChange({ avatar_url: croppedImage });
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to crop image");
+    }
+    setIsCropping(false);
+    setImageSrc(null);
+  };
+
   return (
     <div>
       <h2 className="text-lg font-semibold">Profile</h2>
       <p className="text-xs text-muted-foreground">Personal details visible across Attendly</p>
 
+      {isCropping && imageSrc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border bg-card p-4 shadow-elegant animate-in zoom-in-95 duration-200">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold">Crop Photo</h3>
+              <button onClick={() => setIsCropping(false)} className="rounded-full p-2 hover:bg-muted transition-colors"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="relative h-[300px] w-full rounded-xl overflow-hidden bg-muted/30">
+              <Cropper
+                image={imageSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                cropShape="round"
+                onCropChange={setCrop}
+                onCropComplete={onCropComplete}
+                onZoomChange={setZoom}
+              />
+            </div>
+            <div className="mt-4">
+              <label className="text-xs font-semibold text-muted-foreground">Zoom</label>
+              <input 
+                type="range" 
+                min={1} max={3} step={0.1} 
+                value={zoom} 
+                onChange={e => setZoom(Number(e.target.value))} 
+                className="w-full mt-2 accent-primary" 
+              />
+            </div>
+            <div className="mt-6 flex gap-3">
+              <button onClick={() => setIsCropping(false)} className="flex-1 rounded-xl border bg-card py-2.5 text-sm font-semibold hover:bg-accent transition-colors">Cancel</button>
+              <button onClick={handleCropSave} className="flex-1 rounded-xl gradient-primary py-2.5 text-sm font-semibold text-white shadow-md hover:brightness-110 transition-all">Apply Crop</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mt-5 flex items-center gap-4 rounded-lg border bg-background/40 p-4">
-        <Avatar2D name={data.name} size={64} src={data.avatar_url} />
+        <div className="relative group">
+          <Avatar2D name={data.name} size={64} src={data.avatar_url} />
+          <label className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100 cursor-pointer">
+            <Camera className="h-6 w-6 text-white" />
+            <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+          </label>
+        </div>
         <div className="flex-1">
           <div className="text-sm font-semibold">{data.name}</div>
           <div className="text-xs text-muted-foreground">{data.role || "Staff"} · {data.company_name || "Attendly"}</div>
           <div className="mt-2">
             <input 
               type="text" 
-              placeholder="Paste Image URL (e.g. from Unsplash)" 
+              placeholder="Or paste an Image URL" 
               className="w-full h-8 text-[10px] rounded border bg-card px-2 focus:ring-1 ring-primary outline-none"
               value={data.avatar_url}
               onChange={e => onChange({ avatar_url: e.target.value })}

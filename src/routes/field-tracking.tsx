@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { Avatar2D } from "@/components/common/Avatar2D";
 
 export const Route = createFileRoute("/field-tracking")({
   head: () => ({
@@ -32,6 +33,7 @@ type FieldStaff = {
   lastUpdate: string;
   accuracy?: number;
   branch_id?: string | null;
+  avatar_url?: string | null;
 };
 
 function FieldTrackingPage() {
@@ -92,7 +94,8 @@ function FieldTrackingPage() {
             speedKmh: Number(t?.speed_kmh || 0),
             lastUpdate: t?.last_update ? new Date(t.last_update).toLocaleTimeString() : "Never",
             accuracy: t?.accuracy || 0,
-            branch_id: p.branch_id // Store branch_id for filtering
+            branch_id: p.branch_id, // Store branch_id for filtering
+            avatar_url: p.avatar_url
           } as any;
         });
         setStaff(merged);
@@ -195,8 +198,8 @@ function FieldTrackingPage() {
           <div class="relative flex flex-col items-center">
             ${isActive ? '<div class="absolute -top-1 -inset-x-1 h-10 w-10 animate-ping rounded-full bg-success/30"></div>' : ''}
             <div class="flex flex-col items-center drop-shadow-lg">
-                <div style="background:${color};width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;border:3px solid white;z-index:10;position:relative;">
-                    ${s.initials}
+                <div style="background:${color};width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;border:3px solid white;z-index:10;position:relative;overflow:hidden;">
+                    ${s.avatar_url ? `<img src="${s.avatar_url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';" /><span style="display:none;">${s.initials}</span>` : s.initials}
                 </div>
                 <div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:10px solid white;margin-top:-3px;z-index:5;"></div>
                 <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid ${color};margin-top:-10px;z-index:6;"></div>
@@ -415,11 +418,14 @@ function FieldTrackingPage() {
                     selected?.id === s.id && "bg-accent/60"
                   )}
                 >
-                  <div className={cn("relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white",
-                    s.status === "active" ? "bg-success" : s.status === "idle" ? "bg-warning" : "bg-muted-foreground"
-                  )}>
-                    {s.initials}
-                    {s.status === "active" && <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-success ring-2 ring-card animate-pulse" />}
+                  <div className="relative shrink-0">
+                    <Avatar2D 
+                      name={s.name} 
+                      src={s.avatar_url} 
+                      size={40} 
+                      className={cn(s.status === "active" ? "ring-2 ring-success ring-offset-1" : s.status === "idle" ? "ring-2 ring-warning ring-offset-1" : "")} 
+                    />
+                    {s.status === "active" && <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-success ring-2 ring-card animate-pulse z-10" />}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
