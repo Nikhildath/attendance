@@ -52,6 +52,12 @@
 - **Work Anniversaries**: Celebrates milestones by highlighting the number of years an employee has dedicated to the team.
 - **Profile Synchronization**: Integrated date-of-birth and joining-date management within the Admin console.
 
+### 🎨 Profile Personalization & Avatars
+*A touch of personality for the whole team.*
+- **Manual Image Cropper**: Employees can upload and perfectly crop their profile pictures directly within the Settings menu using an interactive UI.
+- **Global Visibility**: Custom avatars are seamlessly integrated into the top navigation, team directory, admin management tables, and live field tracking maps.
+- **Smart Optimization**: Cropped images are automatically resized and stored efficiently directly within the database profile.
+
 ### 💰 Automated Payroll & Payslip Generation
 *Turn attendance data into actionable financials.*
 - **Automated Calculation**: The system aggregates Present Days, Approved Leaves, Holidays, and deductions to calculate net payable days.
