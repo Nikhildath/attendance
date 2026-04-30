@@ -1,101 +1,109 @@
-# 🌟 Attendly Pro
+# 🌟 Attendly Pro: The Ultimate Workforce Management Ecosystem
 
 ![Attendly Pro Banner](./public/banner.png)
 
-**Attendly Pro** is a premium, high-performance attendance and field workforce management platform. Built with a cutting-edge tech stack, it provides real-time visibility, automated payroll preparation, and robust security for modern organizations.
+**Attendly Pro** is an enterprise-grade, high-performance attendance and field workforce management platform. Engineered for the modern distributed workforce, it combines AI-powered face recognition, real-time geospatial tracking, and a robust PostgreSQL-backed infrastructure to deliver a seamless management experience.
 
 ---
 
-## ✨ Key Features
-
-### 📡 Real-Time Field Tracking
-- **Live GPS Sync**: High-frequency location updates for field staff.
-- **Identity Resolution**: Advanced RPC handling to prevent data loss even if auth sessions lag.
-- **Battery & Status Monitoring**: Monitor device health and 'Active/Idle/Offline' status in real-time.
-
-### 🛡️ Enterprise-Grade Security
-- **Face Recognition**: Secure, admin-verified attendance marking using AI-powered face descriptors.
-- **Custom Identity Engine**: Dual-mode authentication (Supabase Auth + Secure Custom Login) for flexible workforce onboarding.
-- **Security Definer RPCs**: Database-level stability ensuring data integrity across all environments.
-
-### 🌍 Global-Ready, India-Optimized
-- **Localization**: Full support for Indian Timezones (Asia/Kolkata) and date formatting.
-- **Holiday Management**: Built-in India-standard holiday calendars with branch-level customization.
-
-### 📊 Administrative Command Center
-- **Branch Management**: Geo-fencing and branch-specific configurations.
-- **Team Insights**: Real-time dashboards for attendance patterns, leave trends, and field coverage.
-- **Automated Payroll**: One-click exports and real-time payslip generation data.
+## 📖 Table of Contents
+- [✨ Core Feature Deep-Dive](#-core-feature-deep-dive)
+  - [📡 Real-Time Field Tracking & Geospatial Intelligence](#-real-time-field-tracking--geospatial-intelligence)
+  - [🛡️ Biometric & Secure Authentication](#-biometric--secure-authentication)
+  - [🌍 Regional Optimization (India Focus)](#-regional-optimization-india-focus)
+- [🛠️ Technical Architecture](#-technical-architecture)
+  - [⚡ Frontend Mastery](#-frontend-mastery)
+  - [🗄️ Database & Security Layer](#-database--security-layer)
+- [⚙️ System Configuration](#-system-configuration)
+- [🚀 Deployment Strategy](#-deployment-strategy)
+- [🔄 Infrastructure Hardening (Recent Updates)](#-infrastructure-hardening-recent-updates)
 
 ---
 
-## 🛠️ Technology Stack
+## ✨ Core Feature Deep-Dive
 
-| Layer | Technology |
-| :--- | :--- |
-| **Frontend** | React 18, TypeScript, TanStack Router |
-| **Backend** | Supabase (PostgreSQL, Auth, Realtime) |
-| **Styling** | Tailwind CSS, Framer Motion, shadcn/ui |
-| **Logic** | Security Definer PL/pgSQL RPCs |
-| **Hosting** | Render / Netlify (CI/CD Optimized) |
+### 📡 Real-Time Field Tracking & Geospatial Intelligence
+Attendly Pro doesn't just record timestamps; it maps the movement of your organization.
+- **High-Frequency Synchronization**: Using the specialized `LiveTracker` component, the system captures GPS coordinates every 30 seconds. This data is piped through a robust `upsert_staff_tracking` RPC function.
+- **Identity Resolution Logic**: Our custom-built database logic solves the "First-Sync Conflict." Even if a user's local session hasn't fully hydrated, the database uses "Just-In-Time" profile resolution to ensure tracking data is never lost due to Foreign Key violations.
+- **Geofencing & Branch Context**: Admins can define specific branch radii. The system intelligently switches between high-accuracy GPS and branch-fallback location depending on signal strength and user activity.
+- **Device Health Monitoring**: Every location ping carries battery level telemetry, allowing managers to understand why a user might have gone "Offline" (e.g., dead battery vs. inactive app).
+
+### 🛡️ Biometric & Secure Authentication
+Security is at the heart of the Attendly ecosystem.
+- **AI-Powered Face Recognition**: Integrated with `face-api.js`, the system requires users to register a unique face descriptor. Attendance can only be marked if the live camera feed matches the stored mathematical representation of the user's face.
+- **Dual-Mode Authentication**: 
+  - **Standard Mode**: Full Supabase Auth integration using JWTs.
+  - **Custom Login (Staff Mode)**: A high-speed login bypass using our `check_credentials` RPC, allowing staff to log in with simple credentials without complex OAuth handshakes, perfect for on-field utility.
+- **Role-Based Access Control (RBAC)**: Distinct views for **Employees** (Self-tracking), **Managers** (Team visibility), and **Admins** (Full system control).
+
+### 🌍 Regional Optimization (India Focus)
+Designed specifically for the Indian workforce landscape.
+- **IST Timezone Locking**: All timestamps are normalized to `Asia/Kolkata` at the database level, preventing "TimeZone Drift" when users travel or use VPNs.
+- **Indian Holiday Engine**: A dedicated `HolidayManager` module allows admins to configure Gazetted and Restricted holidays specific to Indian states.
+- **Localization**: Date formats, currency symbols (₹), and calendar layouts are hard-coded to Indian standards for maximum user familiarity.
 
 ---
 
-## 🚀 Quick Start
+## 🛠️ Technical Architecture
 
-### 1. Installation
+### ⚡ Frontend Mastery
+Built on **React 18** and **TanStack Router**, the frontend is designed for speed and type safety.
+- **State Management**: Uses React Context (Auth, Branch, Settings) to provide a single source of truth across the application.
+- **Responsive UI**: A "Glassmorphism" aesthetic built with **Tailwind CSS**, featuring vibrant gradients, smooth transitions with **Framer Motion**, and a high-end dark mode experience.
+- **Leaflet Integration**: High-performance interactive maps in the Admin console for real-time staff visualization.
+
+### 🗄️ Database & Security Layer
+The backend is a hardened **Supabase (PostgreSQL)** instance.
+- **Security Definer Functions**: All critical operations (like user creation or tracking updates) use `SECURITY DEFINER` functions. This allows unauthorized flows (like custom login) to interact with the database under strict, pre-defined rules, bypassing traditional RLS when necessary but maintaining 100% auditability.
+- **Schema Protection**: We use `search_path = public` on all RPCs to prevent search-path hijacking attacks.
+- **Atomic Operations**: Profile creation and tracking updates are bundled into single atomic transactions to ensure the database remains in a consistent state.
+
+---
+
+## ⚙️ System Configuration
+
+### Prerequisites
+- **Node.js**: v18.0.0 or higher
+- **Supabase**: A project with the `pg_crypto` and `pg_vector` (optional) extensions enabled.
+
+### Environment Variables
+```env
+VITE_SUPABASE_URL=https://[YOUR_PROJECT_ID].supabase.co
+VITE_SUPABASE_ANON_KEY=[YOUR_ANON_KEY]
+```
+
+### Installation
 ```bash
-git clone <repository-url>
-cd attendance-hub-pro-main
 npm install --legacy-peer-deps
 ```
-
-### 2. Environment Configuration
-Create a `.env` file in the root:
-```env
-VITE_SUPABASE_URL=your_project_url
-VITE_SUPABASE_ANON_KEY=your_anon_key
-```
-
-### 3. Database Initialization
-Apply the latest schema found in `supabase_schema.sql` to your Supabase project. This includes all essential tables, RLS policies, and RPC functions.
-
-### 4. Development
-```bash
-npm run dev
-```
+*Note: We use `--legacy-peer-deps` to ensure compatibility with specific face-recognition and mapping libraries.*
 
 ---
 
-## 🏗️ Project Structure
+## 🚀 Deployment Strategy
 
-```text
-src/
-├── components/
-│   ├── admin/           # Management modules (Holidays, Shifts)
-│   ├── common/          # Shared UI & Live Tracking logic
-│   ├── layout/          # Premium Sidebar & Navigation
-│   └── ui/              # Base shadcn/ui components
-├── lib/                 # Core logic (Supabase, Auth, Branch Context)
-├── routes/              # Type-safe routing (TanStack Router)
-└── styles/              # Global Design System
-```
+Attendly Pro is optimized for **Render** and **Netlify** deployment.
+- **Build Command**: `npm run build`
+- **Output Directory**: `dist`
+- **Routing**: Ensure your hosting provider is configured to redirect all 404s to `index.html` (Standard SPA routing).
 
 ---
 
-## 🔄 Recent Infrastructure Hardening
-- **✅ Robust Field Sync**: Implemented just-in-time profile resolution to eliminate Foreign Key errors in production.
-- **✅ Branch Contextualization**: Centralized branch-level geofencing and state management.
-- **✅ Multi-Platform Deployment**: Optimized for Render/Netlify with standard build pipelines.
-- **✅ Security Audit**: Enabled `Security Definer` on all critical RPCs with `search_path` protection.
+## 🔄 Infrastructure Hardening (Recent Updates)
+
+In the latest v2.4 update, we significantly hardened the platform's stability:
+- **✅ Robust Identity Resolution**: The `upsert_staff_tracking` RPC was rebuilt from the ground up to handle "Email/ID Mismatches." It now resolves identities by email if the provided ID is not found, effectively eliminating the `409 Conflict` errors seen in production.
+- **✅ Security Definer Audit**: All administrative functions (`admin_insert_profile`, `admin_update_profile`) were audited for security, ensuring only users with the `Admin` role can execute them.
+- **✅ Realtime Engine**: Optimized the Supabase Realtime channel usage in `FieldTrackingPage` to reduce overhead while maintaining <1s latency for location markers.
 
 ---
 
 ## 📄 License
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🆘 Support
-For technical issues or configuration help, please refer to the [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) or contact the platform administrator.
+## 🆘 Support & Documentation
+For detailed database setup, refer to [SUPABASE_SETUP.md](./SUPABASE_SETUP.md). For troubleshooting foreign key or authentication issues, check the [LIVE_TRACKING_FIX.md](./LIVE_TRACKING_FIX.md).
 
 ---
-*Built with ❤️ by the Attendly Team*
+*Built with ❤️ by the Attendly Pro Engineering Team. Empowering the future of work.*
