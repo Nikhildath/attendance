@@ -44,6 +44,7 @@ function SettingsPage() {
         dept: profile.dept || "",
         phone: (profile as any).phone || "",
         location: (profile as any).location || "",
+        avatar_url: profile.avatar_url || "",
         ...settings
       });
     }
@@ -59,6 +60,7 @@ function SettingsPage() {
       .update({
         name: formData.name,
         dept: formData.dept,
+        avatar_url: formData.avatar_url,
       })
       .eq("id", profile.id);
     
@@ -159,11 +161,19 @@ function ProfileSettings({ data, onChange }: { data: any; onChange: (d: any) => 
       <p className="text-xs text-muted-foreground">Personal details visible across Attendly</p>
 
       <div className="mt-5 flex items-center gap-4 rounded-lg border bg-background/40 p-4">
-        <Avatar2D name={data.name} size={64} />
-        <div>
+        <Avatar2D name={data.name} size={64} src={data.avatar_url} />
+        <div className="flex-1">
           <div className="text-sm font-semibold">{data.name}</div>
           <div className="text-xs text-muted-foreground">{data.role || "Staff"} · {data.company_name || "Attendly"}</div>
-          <button className="mt-2 text-xs font-medium text-primary hover:underline cursor-not-allowed opacity-50">Change avatar (Coming soon)</button>
+          <div className="mt-2">
+            <input 
+              type="text" 
+              placeholder="Paste Image URL (e.g. from Unsplash)" 
+              className="w-full h-8 text-[10px] rounded border bg-card px-2 focus:ring-1 ring-primary outline-none"
+              value={data.avatar_url}
+              onChange={e => onChange({ avatar_url: e.target.value })}
+            />
+          </div>
         </div>
       </div>
 

@@ -357,7 +357,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
                     className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-primary/5 transition-colors group"
                   >
                     <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full ring-2 ring-primary/10">
-                       <Avatar2D name={p.name} size={32} />
+                       <Avatar2D name={p.name} size={32} src={p.avatar_url} />
                     </div>
                     <div className="flex-1 min-w-0">
                        <div className="text-[13px] font-bold truncate group-hover:text-primary transition-colors">{p.name}</div>
@@ -415,7 +415,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
 
         <div className="flex items-center gap-2 md:gap-3 rounded-full border border-border/50 bg-card/80 p-1 md:py-1.5 md:pl-1.5 md:pr-4 shadow-sm hover:shadow-md transition-shadow cursor-default">
           <div className="ring-2 ring-primary/20 rounded-full overflow-hidden">
-            <Avatar2D name={profile?.name ?? "Guest"} size={36} />
+            <Avatar2D name={profile?.name ?? "Guest"} size={36} src={profile?.avatar_url} />
           </div>
           <div className="hidden text-left leading-none sm:block">
             <div className="text-[13px] font-black tracking-tight">{profile?.name ?? "Guest User"}</div>

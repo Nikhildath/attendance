@@ -13,7 +13,21 @@ const palettes = [
   ["#6366f1", "#818cf8"],
 ];
 
-export function Avatar2D({ name, size = 40 }: { name: string; size?: number }) {
+export function Avatar2D({ name, size = 40, src }: { name: string; size?: number; src?: string | null }) {
+  if (src) {
+    return (
+      <img 
+        src={src} 
+        alt={name} 
+        width={size} 
+        height={size} 
+        className="shrink-0 rounded-full object-cover border border-border"
+        onError={(e) => {
+          (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
+        }}
+      />
+    );
+  }
   const initials = name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
   const [a, b] = palettes[hash(name) % palettes.length];
   const id = `g-${hash(name)}`;

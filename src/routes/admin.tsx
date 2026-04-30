@@ -336,7 +336,7 @@ function AdminPage() {
                   {users.filter(u => u.name?.toLowerCase().includes(q.toLowerCase())).map(u => (
                     <tr key={u.id} className="border-t hover:bg-accent/30">
                       <td className="px-5 py-3 flex items-center gap-3">
-                        <Avatar2D name={drafts[u.id]?.name ?? u.name} size={32} /> 
+                        <Avatar2D name={drafts[u.id]?.name ?? u.name} size={32} src={u.avatar_url} /> 
                         <Input 
                           className="h-8 w-32 text-xs" 
                           value={drafts[u.id]?.name ?? u.name} 

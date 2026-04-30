@@ -119,7 +119,7 @@ function TeamPage() {
                   <tr key={m.id} className="border-t transition-colors hover:bg-accent/30">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
-                        <Avatar2D name={m.name} size={36} />
+                        <Avatar2D name={m.name} size={36} src={m.avatar_url} />
                         <div className="font-medium">{m.name}</div>
                       </div>
                     </td>

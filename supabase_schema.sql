@@ -36,6 +36,7 @@
       branch_id uuid references public.branches(id) on delete set null,
       dob date,
       joining_date date,
+      avatar_url text,
       created_at timestamptz default now(),
       updated_at timestamptz default now()
   );
