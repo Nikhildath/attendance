@@ -48,20 +48,28 @@ function PayrollPage() {
   const loadData = async () => {
     if (!profile?.id && !authLoading) return;
     setLoading(true);
-    
-    // 1. Load Payslips
+
+    // 1. Load Payslips for the selected month
     let query = supabase.from("payslips").select(`*, profiles(name)`).eq("month", month);
     if (!isAdmin) query = query.eq("user_id", profile?.id);
     const { data: pay } = await query;
     if (pay) setPayslips(pay);
 
-    // 2. Load Attendance Data for Fines & OT
-    const start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString();
-    
-    let attQuery = supabase.from("attendance").select("*, profiles(name)").gte("created_at", start).lte("created_at", end);
+    // 2. Load Attendance Data for Fines & OT — use check_in date range, not created_at
+    const [year, monthIdx] = (() => {
+      const d = new Date(month);
+      return [d.getFullYear(), d.getMonth()];
+    })();
+    const start = new Date(year, monthIdx, 1).toISOString();
+    const end = new Date(year, monthIdx + 1, 0, 23, 59, 59).toISOString();
+
+    let attQuery = supabase
+      .from("attendance")
+      .select("*, profiles(name)")
+      .gte("check_in", start)
+      .lte("check_in", end);
     if (!isAdmin) attQuery = attQuery.eq("user_id", profile?.id);
-    
+
     const { data: att } = await attQuery;
     if (att) {
         const limit = (settings?.working_hours_per_day || 9) * 3600 * 1000;
@@ -325,11 +333,13 @@ function PayrollPage() {
                       <div key={i} className="flex items-center justify-between border-b border-white/5 p-4 last:border-0 hover:bg-accent/10">
                           <div>
                               <div className="font-bold text-sm">{f.profiles?.name}</div>
-                              <div className="text-[10px] text-muted-foreground uppercase">{new Date(f.created_at).toLocaleDateString(undefined, {weekday:'short', day:'numeric', month:'short'})}</div>
+                              <div className="text-[10px] text-muted-foreground uppercase">{new Date(f.check_in || f.created_at).toLocaleDateString(undefined, {weekday:'short', day:'numeric', month:'short'})}</div>
                           </div>
                           <div className="text-right">
                               <div className="font-black text-destructive text-sm">−{currency} {lateFine}</div>
-                              <div className="text-[10px] text-muted-foreground">Late Punch: {new Date(f.check_in).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+                              <div className="text-[10px] text-muted-foreground">
+                                Late Punch: {f.check_in ? new Date(f.check_in).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'N/A'}
+                              </div>
                           </div>
                       </div>
                   ))}

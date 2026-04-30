@@ -70,14 +70,14 @@ export function MonthCalendar({ compact = false, onHolidaysChange }: { compact?:
       if (!profile?.id) return;
       
       const start = new Date(cursor.y, cursor.m, 1).toISOString();
-      const end = new Date(cursor.y, cursor.m + 1, 0).toISOString();
+      const end = new Date(cursor.y, cursor.m + 1, 1).toISOString();
 
       const { data } = await supabase
         .from("attendance")
         .select("*")
         .eq("user_id", profile.id)
         .gte("created_at", start)
-        .lte("created_at", end);
+        .lt("created_at", end);
 
       const map: Record<number, { status: AttendanceStatus; checkIn?: string; checkOut?: string; note?: string }> = {};
       

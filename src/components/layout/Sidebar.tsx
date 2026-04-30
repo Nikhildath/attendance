@@ -11,7 +11,7 @@ const nav = [
   { to: "/calendar", label: "Calendar", icon: Calendar },
   { to: "/attendance", label: "Attendance", icon: Clock },
   { to: "/leaves", label: "Leaves", icon: FileText },
-  { to: "/holidays", label: "Holidays", icon: PartyPopper },
+  { to: "/comp-offs", label: "Comp Offs", icon: Clock },
   { to: "/shifts", label: "Shifts", icon: CalendarRange },
   { to: "/payroll", label: "Payroll", icon: Wallet },
   { to: "/settings", label: "Settings", icon: Settings },

@@ -30,6 +30,9 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+// Session expires after 30 days
+const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
+
 async function fetchProfileById(userId: string) {
   const { data, error } = await supabase
     .from("profiles")
@@ -79,15 +82,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let mounted = true;
 
     const initAuth = async () => {
-      // 1. Check manual session first
+      // 1. Check manual session first, validate it hasn't expired
       const savedSession = localStorage.getItem("sb_custom_session");
       if (savedSession) {
         try {
-          const { profile: p } = JSON.parse(savedSession);
-          if (mounted) {
-            setProfile(p);
-            setLoading(false);
-            return;
+          const { profile: p, timestamp } = JSON.parse(savedSession);
+          // Check session expiry
+          if (timestamp && Date.now() - timestamp < SESSION_EXPIRY_MS) {
+            if (mounted) {
+              setProfile(p);
+              setLoading(false);
+              return;
+            }
+          } else {
+            // Session expired, remove it
+            localStorage.removeItem("sb_custom_session");
           }
         } catch {
           localStorage.removeItem("sb_custom_session");
@@ -140,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const userId = profile?.id || user?.id;
     if (!userId) return;
     
-    setLoading(true);
+    // Don't set loading=true here — causes full-page flashes on subtle refreshes
     let nextProfile: Profile | null = null;
 
     const { data: rpcData, error: rpcError } = await supabase.rpc('get_profile_by_id', { p_id: userId }).maybeSingle();
@@ -160,7 +169,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }));
       }
     }
-    setLoading(false);
   };
 
   const value = useMemo(
@@ -202,7 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       signUp: async (email: string, password: string, fullName: string) => {
         setLoading(true);
-        const { data, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -217,12 +225,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw error;
         }
 
-        if (data.user) {
-          await supabase
-            .from("profiles")
-            .update({ password })
-            .eq("id", data.user.id);
-        }
+        // NOTE: Do NOT store plaintext password in profiles here.
+        // The handle_new_user trigger creates the profile automatically.
+        setLoading(false);
       },
       signOut: async () => {
         setLoading(true);

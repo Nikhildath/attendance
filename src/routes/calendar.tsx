@@ -34,14 +34,14 @@ function CalendarPage() {
     async function loadStats() {
       setLoading(true);
       const start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-      const end = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString();
+      const end = new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString();
 
       const { data: att } = await supabase
         .from("attendance")
         .select("status")
         .eq("user_id", profile.id)
         .gte("created_at", start)
-        .lte("created_at", end);
+        .lt("created_at", end);
 
       const { data: lvs } = await supabase
         .from("leaves")

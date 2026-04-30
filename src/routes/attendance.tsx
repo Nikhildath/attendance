@@ -69,9 +69,9 @@ function AttendancePage() {
     
     if (data) {
       setRecentRecords(data);
-      // Find latest record for today
+      // Find latest record for today (guard against null check_in)
       const today = new Date().toISOString().split('T')[0];
-      const latestToday = data.find(r => r.check_in.startsWith(today));
+      const latestToday = data.find(r => r.check_in && r.check_in.startsWith(today));
       setTodayRecord(latestToday || null);
       
       if (latestToday) {
@@ -179,6 +179,7 @@ function AttendancePage() {
     
     let lat = 0;
     let lng = 0;
+    let saveError: any = null;
 
     // Try to get precise location for the record
     try {
@@ -202,7 +203,7 @@ function AttendancePage() {
           notes: (todayRecord.notes || "") + (geo === "outside" ? " Checked out outside geo-fence." : "")
         })
         .eq("id", todayRecord.id);
-        
+      saveError = error;
       if (error) {
         toast.error("Check-out failed: " + error.message);
       } else {
@@ -212,14 +213,14 @@ function AttendancePage() {
       // Perform Check-In
       const { error } = await supabase.from("attendance").insert([{
         user_id: profile?.id,
-        branch_id: current?.id,
+        branch_id: current?.id || null,
         status: status,
         check_in: timestamp.toISOString(),
         location_lat: lat,
         location_lng: lng,
         notes: (geo === "outside" ? "Marked outside geo-fence. " : "") + (isHoliday ? `Marked on ${isHoliday.name}` : "")
       }]);
-      
+      saveError = error;
       if (error) {
         toast.error("Check-in failed: " + error.message);
       } else {
@@ -231,8 +232,8 @@ function AttendancePage() {
 
     setTimeout(() => {
       stopCamera();
-      if (error) {
-        toast.error("Failed to save: " + error.message);
+      if (saveError) {
+        // Error already toasted above, just reset state
         setState("idle");
       } else {
         setMarkedAt(fmtTime(timestamp));
@@ -592,7 +593,7 @@ function AttendancePage() {
             </div>
             <button
               onClick={mark}
-              disabled={state === "scanning" || state === "camera" || !profile?.face_registered || branchLoading || !!todayRecord?.check_out}
+              disabled={state === "scanning" || state === "camera" || (punchMode === "web" && !profile?.face_registered) || branchLoading || !!todayRecord?.check_out}
               className="inline-flex items-center gap-2 rounded-xl gradient-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-elegant transition-transform hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0 disabled:grayscale"
             >
               <Camera className="h-4 w-4" />

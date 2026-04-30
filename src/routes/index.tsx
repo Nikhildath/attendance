@@ -71,21 +71,25 @@ function Dashboard() {
           lastCheckIn: last?.check_in ? new Date(last.check_in).toLocaleString() : "Not yet recorded",
         });
 
-        // Simple recent activity mapping
-        setRecentActivity(att.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5).map((a, i) => ({
-          id: a.id,
-          action: a.status === 'present' ? "Checked in" : `Marked ${a.status}`,
-          time: new Date(a.check_in || a.created_at).toLocaleString(),
-          status: a.status as any
-        })));
+        // Simple recent activity mapping — sort by check_in date
+        setRecentActivity(att
+          .filter(a => a.check_in)
+          .sort((a,b) => new Date(b.check_in).getTime() - new Date(a.check_in).getTime())
+          .slice(0, 5)
+          .map((a) => ({
+            id: a.id,
+            action: a.status === 'present' ? "Checked in" : `Marked ${a.status}`,
+            time: new Date(a.check_in).toLocaleString(),
+            status: a.status as any
+          })));
 
-        // Weekly Trend (Last 7 Days)
+        // Weekly Trend (Last 7 Days) — group by check_in date, not created_at
         const weekly = [];
         for (let i = 6; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
             const dateStr = d.toLocaleDateString('en-US', { weekday: 'short' });
-            const dayAtt = att.filter(a => new Date(a.created_at).toDateString() === d.toDateString());
+            const dayAtt = att.filter(a => a.check_in && new Date(a.check_in).toDateString() === d.toDateString());
             weekly.push({
                 day: dateStr,
                 present: dayAtt.filter(a => a.status === 'present').length,
@@ -94,6 +98,7 @@ function Dashboard() {
             });
         }
         setWeeklyData(weekly);
+
       }
       setLoading(false);
     }

@@ -72,17 +72,19 @@ function SettingsPage() {
     if (profile.role === "Admin") {
         const { error: sErr } = await supabase
           .from("organisation_settings")
-          .update({
+          .upsert({
+            id: (settings as any)?.id ?? 1,
             company_name: formData.company_name,
             late_threshold_mins: formData.late_threshold_mins,
             late_fine_amount: formData.late_fine_amount,
             working_hours_per_day: formData.working_hours_per_day
-          })
-          .eq("id", 1);
-       
+          });
+
        if (!sErr) {
           refreshSettings();
           toast.success("Organisation settings updated");
+       } else {
+          toast.error("Settings update failed: " + sErr.message);
        }
     }
 
@@ -189,7 +191,7 @@ function ProfileSettings({ data, onChange }: { data: any; onChange: (d: any) => 
         <Field label="Staff ID">
           <input 
             className={cn(inputClass, "opacity-60 font-mono")} 
-            value={`ATD-${data.name?.split(' ')[0].toUpperCase()}`} 
+            value={`ATD-${(data.name || "STAFF").split(' ')[0].toUpperCase()}`} 
             readOnly 
           />
         </Field>
@@ -315,6 +317,12 @@ function SystemSettings({ isAdmin }: { isAdmin: boolean }) {
         for (const table of order) {
           if (backup[table] && backup[table].length > 0) {
             console.log(`Restoring ${table}...`);
+            // Skip profiles restoration — profiles require auth.users entries to exist first
+            // Restoring profiles from a backup file bypasses FK constraints and will fail
+            if (table === "profiles") {
+              console.warn("Skipping profiles restoration from backup (requires auth.users entries)");
+              continue;
+            }
             const { error } = await supabase.from(table).upsert(backup[table]);
             if (error) {
                console.error(`Error restoring ${table}:`, error);

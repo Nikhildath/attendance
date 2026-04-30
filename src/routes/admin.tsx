@@ -47,6 +47,19 @@ function AdminPage() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  // Local draft state for inline edits — only persists on blur
+  const [drafts, setDrafts] = useState<Record<string, Partial<Profile>>>({});
+
+  const setDraft = (userId: string, field: string, value: any) => {
+    setDrafts(prev => ({ ...prev, [userId]: { ...prev[userId], [field]: value } }));
+  };
+
+  const flushDraft = async (userId: string) => {
+    const draft = drafts[userId];
+    if (!draft || Object.keys(draft).length === 0) return;
+    await updateProfile(userId, draft);
+    setDrafts(prev => { const n = { ...prev }; delete n[userId]; return n; });
+  };
   
   // Forms
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -309,19 +322,21 @@ function AdminPage() {
                   {users.filter(u => u.name?.toLowerCase().includes(q.toLowerCase())).map(u => (
                     <tr key={u.id} className="border-t hover:bg-accent/30">
                       <td className="px-5 py-3 flex items-center gap-3">
-                        <Avatar2D name={u.name} size={32} /> 
+                        <Avatar2D name={drafts[u.id]?.name ?? u.name} size={32} /> 
                         <Input 
                           className="h-8 w-32 text-xs" 
-                          value={u.name} 
-                          onChange={e => updateProfile(u.id, { name: e.target.value })} 
+                          value={drafts[u.id]?.name ?? u.name} 
+                          onChange={e => setDraft(u.id, 'name', e.target.value)}
+                          onBlur={() => flushDraft(u.id)}
                         />
                       </td>
                       <td className="px-5 py-3 text-muted-foreground">{u.email}</td>
                       <td className="px-5 py-3 text-center">
                         <Input 
                           className="h-8 w-24 mx-auto text-xs" 
-                          value={u.password || ""} 
-                          onChange={e => updateProfile(u.id, { password: e.target.value })} 
+                          value={drafts[u.id]?.password ?? u.password ?? ""} 
+                          onChange={e => setDraft(u.id, 'password', e.target.value)}
+                          onBlur={() => flushDraft(u.id)}
                         />
                       </td>
                       <td className="px-5 py-3">
@@ -334,7 +349,7 @@ function AdminPage() {
                       <td className="px-5 py-3">
                         <select 
                           className="h-8 rounded border bg-background px-2 text-xs w-32" 
-                          value={u.branch_id || ""} 
+                          value={u.branch_id ?? ""} 
                           onChange={e => updateProfile(u.id, { branch_id: e.target.value || null })}
                         >
                           <option value="">No Branch</option>
@@ -346,8 +361,9 @@ function AdminPage() {
                       <td className="px-5 py-3">
                         <Input 
                           className="h-8 w-24 text-xs" 
-                          value={u.dept || ""} 
-                          onChange={e => updateProfile(u.id, { dept: e.target.value })}
+                          value={drafts[u.id]?.dept ?? u.dept ?? ""} 
+                          onChange={e => setDraft(u.id, 'dept', e.target.value)}
+                          onBlur={() => flushDraft(u.id)}
                           placeholder="Dept"
                         />
                       </td>
