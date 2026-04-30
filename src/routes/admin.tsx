@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Search, Trash2, Users, Shield, Building2, Copy, Check, MapPin, Settings as SettingsIcon, Save, PartyPopper } from "lucide-react";
+import { Plus, Search, Trash2, Users, Shield, Building2, Copy, Check, MapPin, Settings as SettingsIcon, Save, PartyPopper, Bell, Info, AlertTriangle, Pin, Megaphone, Calendar } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Avatar2D } from "@/components/common/Avatar2D";
 import { StatCard } from "@/components/common/StatCard";
@@ -38,7 +38,7 @@ export const Route = createFileRoute("/admin")({
 type Role = "Employee" | "Manager" | "Admin";
 
 function AdminPage() {
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const { settings, refresh: refreshSettings } = useSettings();
   const { all: allBranches, setCurrent: setGlobalBranch, refresh: refreshBranches } = useBranch();
   
@@ -101,11 +101,16 @@ function AdminPage() {
       p_dept: updates.dept || user.dept || "",
       p_password: updates.password || user.password || "",
       p_face: updates.face_registered ?? user.face_registered ?? false,
-      p_branch_id: updates.branch_id === undefined ? user.branch_id : updates.branch_id
+      p_branch_id: updates.branch_id === undefined ? user.branch_id : updates.branch_id,
+      p_dob: updates.dob === undefined ? user.dob : updates.dob,
+      p_joining_date: updates.joining_date === undefined ? user.joining_date : updates.joining_date
     });
     if (!error) {
       toast.success("User updated");
       setUsers(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
+      if (id === profile?.id) {
+        refreshProfile();
+      }
     }
   };
 
@@ -130,6 +135,8 @@ function AdminPage() {
       p_role: newUser.role,
       p_dept: newUser.dept,
       p_password: newUser.password || "123456",
+      p_dob: (newUser as any).dob || null,
+      p_joining_date: (newUser as any).joining_date || null
     });
     if (!error) {
       toast.success("User added", { id: "user" });
@@ -259,6 +266,7 @@ function AdminPage() {
           <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" /> Users</TabsTrigger>
           <TabsTrigger value="branches" className="gap-2"><Building2 className="h-4 w-4" /> Branches</TabsTrigger>
           <TabsTrigger value="holidays" className="gap-2"><PartyPopper className="h-4 w-4" /> Holidays</TabsTrigger>
+          <TabsTrigger value="announcements" className="gap-2"><Plus className="h-4 w-4" /> Announcements</TabsTrigger>
           <TabsTrigger value="settings" className="gap-2"><SettingsIcon className="h-4 w-4" /> Settings</TabsTrigger>
         </TabsList>
 
@@ -300,6 +308,10 @@ function AdminPage() {
                       </div>
                       <div className="space-y-2"><Label>Department</Label><Input value={newUser.dept} onChange={e => setNewUser({...newUser, dept: e.target.value})} /></div>
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2"><Label>Date of Birth</Label><Input type="date" value={(newUser as any).dob || ""} onChange={e => setNewUser({...newUser, dob: e.target.value} as any)} /></div>
+                      <div className="space-y-2"><Label>Joining Date</Label><Input type="date" value={(newUser as any).joining_date || ""} onChange={e => setNewUser({...newUser, joining_date: e.target.value} as any)} /></div>
+                    </div>
                     <Button type="submit" className="w-full">Create Profile</Button>
                   </form>
                 </DialogContent>
@@ -315,6 +327,8 @@ function AdminPage() {
                     <th className="px-5 py-3">Role</th>
                     <th className="px-5 py-3">Branch</th>
                     <th className="px-5 py-3">Dept</th>
+                    <th className="px-5 py-3">DOB</th>
+                    <th className="px-5 py-3">Joined</th>
                     <th className="px-5 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -365,6 +379,24 @@ function AdminPage() {
                           onChange={e => setDraft(u.id, 'dept', e.target.value)}
                           onBlur={() => flushDraft(u.id)}
                           placeholder="Dept"
+                        />
+                      </td>
+                      <td className="px-5 py-3">
+                        <Input 
+                          type="date"
+                          className="h-8 w-28 text-[10px]" 
+                          value={drafts[u.id]?.dob ?? u.dob ?? ""} 
+                          onChange={e => setDraft(u.id, 'dob', e.target.value)}
+                          onBlur={() => flushDraft(u.id)}
+                        />
+                      </td>
+                      <td className="px-5 py-3">
+                        <Input 
+                          type="date"
+                          className="h-8 w-28 text-[10px]" 
+                          value={drafts[u.id]?.joining_date ?? u.joining_date ?? ""} 
+                          onChange={e => setDraft(u.id, 'joining_date', e.target.value)}
+                          onBlur={() => flushDraft(u.id)}
                         />
                       </td>
                       <td className="px-5 py-3 text-right"><Button variant="ghost" size="icon" onClick={() => removeUser(u.id)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button></td>
@@ -424,6 +456,10 @@ function AdminPage() {
            <HolidayManager branches={branches} />
         </TabsContent>
 
+        <TabsContent value="announcements">
+           <AnnouncementManager />
+        </TabsContent>
+
         <TabsContent value="settings">
           <div className="rounded-xl border bg-card p-6 shadow-card">
             <h2 className="text-lg font-semibold mb-6">Organisation Settings</h2>
@@ -436,6 +472,18 @@ function AdminPage() {
               <div className="space-y-4">
                 <div className="space-y-2"><Label>Late Threshold (Minutes)</Label><Input type="number" value={tempSettings?.late_threshold_mins} onChange={e => setTempSettings(s => s ? {...s, late_threshold_mins: parseInt(e.target.value)} : null)} /></div>
                 <div className="space-y-2"><Label>Working Hours per Day</Label><Input type="number" step="0.5" value={tempSettings?.working_hours_per_day} onChange={e => setTempSettings(s => s ? {...s, working_hours_per_day: parseFloat(e.target.value)} : null)} /></div>
+                <div className="space-y-2">
+                  <Label>Weekend Configuration</Label>
+                  <select 
+                    className="flex h-10 w-full rounded-md border bg-background px-3 text-sm" 
+                    value={tempSettings?.weekend_type || 'second_saturday_sundays'} 
+                    onChange={e => setTempSettings(s => s ? {...s, weekend_type: e.target.value} : null)}
+                  >
+                    <option value="second_saturday_sundays">Sundays & 2nd Saturday</option>
+                    <option value="all_saturdays_sundays">Sundays & All Saturdays</option>
+                    <option value="only_sundays">Sundays Only</option>
+                  </select>
+                </div>
                 <div className="space-y-2"><Label>Fiscal Year Start</Label><Input type="date" value={tempSettings?.fiscal_year_start} onChange={e => setTempSettings(s => s ? {...s, fiscal_year_start: e.target.value} : null)} /></div>
               </div>
             </div>
@@ -448,3 +496,126 @@ function AdminPage() {
     </div>
   );
 }
+
+function AnnouncementManager() {
+  const { profile } = useAuth();
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [newA, setNewA] = useState({ title: "", content: "", type: "info", is_pinned: false, expires_at: "" });
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("announcements").select("*").order("created_at", { ascending: false });
+    if (data) setAnnouncements(data);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { error } = await supabase.from("announcements").insert([{
+      ...newA,
+      created_by: profile?.id,
+      expires_at: newA.expires_at || null
+    }]);
+    if (!error) {
+      toast.success("Announcement broadcasted");
+      setIsAddOpen(false);
+      setNewA({ title: "", content: "", type: "info", is_pinned: false, expires_at: "" });
+      load();
+    } else toast.error(error.message);
+  };
+
+  const deleteA = async (id: string) => {
+    if (!confirm("Delete this announcement?")) return;
+    const { error } = await supabase.from("announcements").delete().eq("id", id);
+    if (!error) {
+      toast.success("Deleted");
+      load();
+    }
+  };
+
+  return (
+    <div className="rounded-xl border bg-card shadow-card">
+      <div className="flex items-center justify-between border-b p-5">
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-primary/10 p-2 text-primary">
+            <Megaphone className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold">Company Broadcasts</h2>
+            <p className="text-xs text-muted-foreground">Post announcements and updates to all employees</p>
+          </div>
+        </div>
+        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2 gradient-primary shadow-elegant">
+              <Plus className="h-4 w-4" /> New Announcement
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>New Announcement</DialogTitle>
+              <DialogDescription>This will be pinned to all employee dashboards.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleAdd} className="space-y-4 py-4">
+              <div className="space-y-2"><Label>Title</Label><Input required value={newA.title} onChange={e => setNewA({...newA, title: e.target.value})} placeholder="e.g. Holiday Notice" /></div>
+              <div className="space-y-2"><Label>Content</Label><textarea className="flex min-h-[100px] w-full rounded-md border bg-background px-3 py-2 text-sm" required value={newA.content} onChange={e => setNewA({...newA, content: e.target.value})} placeholder="Write your message here..." /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <select className="flex h-10 w-full rounded-md border bg-background px-3" value={newA.type} onChange={e => setNewA({...newA, type: e.target.value})}>
+                    <option value="info">Information (Blue)</option>
+                    <option value="success">Success (Green)</option>
+                    <option value="warning">Warning (Yellow)</option>
+                    <option value="critical">Critical (Red)</option>
+                  </select>
+                </div>
+                <div className="space-y-2"><Label>Expires At (Optional)</Label><Input type="date" value={newA.expires_at} onChange={e => setNewA({...newA, expires_at: e.target.value})} /></div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="pinned" checked={newA.is_pinned} onChange={e => setNewA({...newA, is_pinned: e.target.checked})} />
+                <Label htmlFor="pinned" className="cursor-pointer">Pin to top of dashboard</Label>
+              </div>
+              <Button type="submit" className="w-full">Broadcast Now</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+      
+      <div className="grid gap-4 p-5 md:grid-cols-2">
+        {announcements.length === 0 ? (
+          <div className="col-span-full py-10 text-center text-muted-foreground">No active announcements</div>
+        ) : (
+          announcements.map(a => (
+            <div key={a.id} className={cn(
+              "relative rounded-xl border p-4 transition-all hover:shadow-md",
+              a.type === 'critical' ? "border-destructive/30 bg-destructive/5" :
+              a.type === 'warning' ? "border-warning/30 bg-warning/5" :
+              a.type === 'success' ? "border-success/30 bg-success/5" :
+              "border-primary/20 bg-primary/5"
+            )}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    {a.is_pinned && <Pin className="h-3 w-3 text-primary fill-primary" />}
+                    <h3 className="font-bold text-sm">{a.title}</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-3">{a.content}</p>
+                  <div className="mt-3 flex items-center gap-3 text-[10px] text-muted-foreground">
+                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {new Date(a.created_at).toLocaleDateString()}</span>
+                    {a.expires_at && <span className="text-destructive font-medium">Expires: {new Date(a.expires_at).toLocaleDateString()}</span>}
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => deleteA(a.id)}><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+

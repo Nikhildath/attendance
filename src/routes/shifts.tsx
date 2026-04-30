@@ -241,6 +241,7 @@ function ShiftModal({ shift, onClose, onSave }: { shift?: any; onClose: () => vo
   const [end, setEnd] = useState(shift?.end_time || "18:00");
   const [breaks, setBreaks] = useState(shift?.break_minutes || 60);
   const [color, setColor] = useState(shift?.color || "bg-primary/10 text-primary border-primary/30");
+  const [workOnHolidays, setWorkOnHolidays] = useState(shift?.work_on_holidays || false);
 
   const colors = [
     { label: "Indigo", value: "bg-primary/10 text-primary border-primary/30" },
@@ -259,7 +260,7 @@ function ShiftModal({ shift, onClose, onSave }: { shift?: any; onClose: () => vo
           <button onClick={onClose} className="rounded-lg p-2 hover:bg-accent transition-colors"><X className="h-5 w-5" /></button>
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); onSave({ name, type, start_time: start, end_time: end, break_minutes: breaks, color }); }} className="mt-6 space-y-5">
+        <form onSubmit={(e) => { e.preventDefault(); onSave({ name, type, start_time: start, end_time: end, break_minutes: breaks, color, work_on_holidays: workOnHolidays }); }} className="mt-6 space-y-5">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="col-span-full">
               <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground">Shift Name</label>
@@ -292,6 +293,23 @@ function ShiftModal({ shift, onClose, onSave }: { shift?: any; onClose: () => vo
                 </div>
               </>
             )}
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border bg-muted/20 p-4">
+            <div className="space-y-0.5">
+              <label className="text-sm font-bold">Work on Holidays</label>
+              <p className="text-[10px] text-muted-foreground">If enabled, this shift remains active even on public holidays.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setWorkOnHolidays(!workOnHolidays)}
+              className={cn(
+                "relative h-6 w-11 rounded-full transition-colors",
+                workOnHolidays ? "gradient-primary" : "bg-muted"
+              )}
+            >
+              <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform", workOnHolidays ? "left-[22px]" : "left-0.5")} />
+            </button>
           </div>
 
           <div>

@@ -13,6 +13,8 @@ export type Profile = {
   face_descriptor?: number[];
   password?: string;
   branch_id?: string | null;
+  dob?: string | null;
+  joining_date?: string | null;
 };
 
 type AuthContextValue = {
@@ -36,7 +38,7 @@ const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
 async function fetchProfileById(userId: string) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id,email,name,role,dept,face_registered,face_descriptor,branch_id")
+    .select("id,email,name,role,dept,face_registered,face_descriptor,branch_id,dob,joining_date")
     .eq("id", userId)
     .single();
 
@@ -60,7 +62,7 @@ async function fetchProfile(user: User | null) {
         role: "Employee",
         face_registered: false,
       })
-      .select("id,email,name,role,dept,face_registered,face_descriptor,branch_id")
+      .select("id,email,name,role,dept,face_registered,face_descriptor,branch_id,dob,joining_date")
       .single();
     
     if (insertError) {

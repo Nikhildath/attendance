@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isWeekend } from "@/lib/utils";
 import { statusMeta, type AttendanceStatus } from "@/lib/mock-data";
 import { useHolidays, holidayOnDate } from "@/lib/holidays";
 import { supabase } from "@/lib/supabase";
@@ -90,6 +90,9 @@ export function MonthCalendar({
         .gte("created_at", start)
         .lt("created_at", end);
 
+      const { data: shifts } = await supabase.from("shifts").select("*");
+      const { data: userSched } = await supabase.from("shift_schedule").select("*").eq("user_id", targetId).maybeSingle();
+
       const map: Record<number, { status: AttendanceStatus; checkIn?: string; checkOut?: string; note?: string }> = {};
       
       // 1. Initialise all days
@@ -98,16 +101,17 @@ export function MonthCalendar({
         const date = new Date(cursor.y, cursor.m, d);
         const dow = date.getDay();
         
-        // Sunday is always a holiday by default
-        if (dow === 0) {
-          map[d] = { status: "holiday", note: "Sunday" };
-        } else if (dow === 6 && d >= 8 && d <= 14) {
-          // 2nd Saturday (Common in India, can be refined later if needed per country)
-          map[d] = { status: "holiday", note: "2nd Saturday" };
-        } else if (dow === 6) {
-          map[d] = { status: "weekend" };
+        const dateObj = new Date(cursor.y, cursor.m, d);
+        if (isWeekend(dateObj, settings?.weekend_type)) {
+          const isSun = dow === 0;
+          const isSecondSat = settings?.weekend_type === 'second_saturday_sundays' && dow === 6 && d >= 8 && d <= 14;
+          map[d] = { 
+            status: (isSun || isSecondSat) ? "holiday" : "weekend", 
+            note: isSun ? "Sunday" : isSecondSat ? "2nd Saturday" : "Weekend" 
+          };
         } else {
-          map[d] = { status: "none" };
+          const isPast = today && dateObj < today;
+          map[d] = { status: isPast ? "absent" : "none" };
         }
       }
 
@@ -117,7 +121,19 @@ export function MonthCalendar({
           const hDate = new Date(h.date);
           if (hDate.getMonth() === cursor.m && hDate.getFullYear() === cursor.y) {
             const d = hDate.getDate();
-            map[d] = { status: "holiday", note: h.localName };
+            const dow = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][hDate.getDay()];
+            const shiftId = userSched ? (userSched as any)[dow] : null;
+            const shift = shifts?.find(s => s.id === shiftId);
+
+            if (shift?.work_on_holidays) {
+               // If shift exists and allows working on holidays, keep it as working day (absent/none)
+               // instead of forcing it to "holiday"
+               if (map[d].status === "holiday" || map[d].status === "weekend") {
+                  map[d] = { status: today && hDate < today ? "absent" : "none", note: h.localName };
+               }
+            } else {
+               map[d] = { status: "holiday", note: h.localName };
+            }
           }
         });
       }

@@ -61,13 +61,13 @@ function PayrollPage() {
       return [d.getFullYear(), d.getMonth()];
     })();
     const start = new Date(year, monthIdx, 1).toISOString();
-    const end = new Date(year, monthIdx + 1, 0, 23, 59, 59).toISOString();
+    const end = new Date(year, monthIdx + 1, 1).toISOString();
 
     let attQuery = supabase
       .from("attendance")
       .select("*, profiles(name)")
       .gte("check_in", start)
-      .lte("check_in", end);
+      .lt("check_in", end);
     if (!isAdmin) attQuery = attQuery.eq("user_id", profile?.id);
 
     const { data: att } = await attQuery;
@@ -104,14 +104,29 @@ function PayrollPage() {
     
     // Fetch all late marks for this month to calculate fines
     const start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString();
-    const { data: allAttendance } = await supabase.from("attendance").select("user_id, status").gte("created_at", start).lte("created_at", end).eq("status", "late");
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString();
+    const { data: allAttendance } = await supabase.from("attendance").select("user_id, status, check_in, check_out").gte("check_in", start).lt("check_in", end);
 
     const newPayslips = employees
         .filter(emp => !existingIds.has(emp.id))
         .map(emp => {
-            const lateCount = allAttendance?.filter(a => a.user_id === emp.id).length || 0;
+            const userAtt = allAttendance?.filter(a => a.user_id === emp.id) || [];
+            const lateCount = userAtt.filter(a => a.status === 'late').length;
             const totalFine = lateCount * lateFine;
+            
+            // Overtime calculation
+            const workHoursLimit = settings?.working_hours_per_day || 9;
+            const otRate = (settings as any)?.overtime_rate || 200;
+            let totalOtPay = 0;
+            
+            userAtt.forEach(a => {
+                if (a.check_in && a.check_out) {
+                    const hours = (new Date(a.check_out).getTime() - new Date(a.check_in).getTime()) / (3600 * 1000);
+                    if (hours > workHoursLimit) {
+                        totalOtPay += (hours - workHoursLimit) * otRate;
+                    }
+                }
+            });
             
             return {
                 user_id: emp.id,
@@ -120,9 +135,10 @@ function PayrollPage() {
                 hra: 5000,
                 allowances: 0,
                 bonus: 0,
-                fines: totalFine, // Automatically calculated!
+                overtime_pay: Math.round(totalOtPay),
+                fines: totalFine,
                 tax: 0,
-                net_payable: 25000 + 5000 - totalFine,
+                net_payable: Math.round(25000 + 5000 + totalOtPay - totalFine),
                 status: 'Pending'
             };
         });
@@ -151,7 +167,7 @@ function PayrollPage() {
 
   const saveEdit = async () => {
     const { profiles, ...updates } = editData;
-    updates.net_payable = Number(updates.basic_pay) + Number(updates.hra) + Number(updates.allowances) + Number(updates.bonus) - Number(updates.fines) - Number(updates.tax);
+    updates.net_payable = Number(updates.basic_pay) + Number(updates.hra) + Number(updates.allowances) + Number(updates.bonus) + Number(updates.overtime_pay || 0) - Number(updates.fines) - Number(updates.tax);
     
     const { error } = await supabase.from("payslips").update(updates).eq("id", editingId);
     if (!error) {
@@ -177,10 +193,11 @@ function PayrollPage() {
   };
 
   const totals = payslips.reduce((acc, p) => ({
-    gross: acc.gross + Number(p.basic_pay) + Number(p.hra) + Number(p.allowances) + Number(p.bonus),
+    gross: acc.gross + Number(p.basic_pay) + Number(p.hra) + Number(p.allowances) + Number(p.bonus) + Number(p.overtime_pay || 0),
     net: acc.net + Number(p.net_payable),
     fines: acc.fines + Number(p.fines),
-  }), { gross: 0, net: 0, fines: 0 });
+    ot: acc.ot + Number(p.overtime_pay || 0),
+  }), { gross: 0, net: 0, fines: 0, ot: 0 });
 
   return (
     <div className="space-y-6">
@@ -234,6 +251,7 @@ function PayrollPage() {
                 <th className="px-4 py-3 text-right">HRA</th>
                 <th className="px-4 py-3 text-right">Allow.</th>
                 <th className="px-4 py-3 text-right">Bonus</th>
+                <th className="px-4 py-3 text-right text-success">OT Pay</th>
                 <th className="px-4 py-3 text-right text-destructive">Fines</th>
                 <th className="px-4 py-3 text-right text-destructive">Tax</th>
                 <th className="px-4 py-3 text-right">Net</th>
@@ -255,6 +273,7 @@ function PayrollPage() {
                         <td className="px-4 py-3"><input type="number" className="w-20 rounded border bg-background px-2 py-1 text-right focus:border-primary outline-none" value={editData.hra} onChange={e => setEditData({...editData, hra: e.target.value})} /></td>
                         <td className="px-4 py-3"><input type="number" className="w-20 rounded border bg-background px-2 py-1 text-right focus:border-primary outline-none" value={editData.allowances} onChange={e => setEditData({...editData, allowances: e.target.value})} /></td>
                         <td className="px-4 py-3"><input type="number" className="w-20 rounded border bg-background px-2 py-1 text-right focus:border-primary outline-none text-success font-bold" value={editData.bonus} onChange={e => setEditData({...editData, bonus: e.target.value})} /></td>
+                        <td className="px-4 py-3"><input type="number" className="w-20 rounded border bg-background px-2 py-1 text-right focus:border-primary outline-none text-success font-bold" value={editData.overtime_pay} onChange={e => setEditData({...editData, overtime_pay: e.target.value})} /></td>
                         <td className="px-4 py-3"><input type="number" className="w-20 rounded border bg-background px-2 py-1 text-right focus:border-primary outline-none text-destructive font-bold" value={editData.fines} onChange={e => setEditData({...editData, fines: e.target.value})} /></td>
                         <td className="px-4 py-3"><input type="number" className="w-20 rounded border bg-background px-2 py-1 text-right focus:border-primary outline-none text-destructive font-bold" value={editData.tax} onChange={e => setEditData({...editData, tax: e.target.value})} /></td>
                       </>
@@ -264,12 +283,13 @@ function PayrollPage() {
                         <td className="px-4 py-3 text-right">{currency} {Number(p.hra).toLocaleString()}</td>
                         <td className="px-4 py-3 text-right">{currency} {Number(p.allowances).toLocaleString()}</td>
                         <td className="px-4 py-3 text-right text-success">{currency} {Number(p.bonus).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right text-success">{currency} {Number(p.overtime_pay || 0).toLocaleString()}</td>
                         <td className="px-4 py-3 text-right text-destructive">−{currency} {Number(p.fines).toLocaleString()}</td>
                         <td className="px-4 py-3 text-right text-destructive">−{currency} {Number(p.tax).toLocaleString()}</td>
                       </>
                   )}
                   <td className="px-4 py-3 text-right font-black text-primary">
-                    {currency} {Number(editingId === p.id ? (Number(editData.basic_pay) + Number(editData.hra) + Number(editData.allowances) + Number(editData.bonus) - Number(editData.fines) - Number(editData.tax)) : p.net_payable).toLocaleString()}
+                    {currency} {Number(editingId === p.id ? (Number(editData.basic_pay) + Number(editData.hra) + Number(editData.allowances) + Number(editData.bonus) + Number(editData.overtime_pay || 0) - Number(editData.fines) - Number(editData.tax)) : p.net_payable).toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-center">
                     {editingId === p.id ? (

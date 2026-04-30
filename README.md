@@ -38,6 +38,19 @@
 - **Admin Scheduling Engine**: Assign specific shift timings to individuals or entire branches.
 - **Employee Visibility**: Staff can view their upcoming shifts directly on their dashboard and calendar.
 - **Late Thresholds**: Automatically flag attendance records as "Late" based on dynamic shift start times and organization-wide grace periods.
+- **Holiday Overrides**: Admins can now mark specific shifts as "Work on Holiday," allowing essential staff to be scheduled even during public holidays without being marked as "On Holiday."
+
+### 📢 Company Broadcasts & Announcements
+*Centralized communication for the entire organization.*
+- **Global Announcements**: Admins can pin important notices, policy updates, or holiday greetings to the top of everyone's dashboard.
+- **Categorized Alerts**: Broadcasts can be marked as Info, Success, Warning, or Critical (Red alert) for immediate attention.
+- **Smart Expiration**: Set optional expiration dates so notices automatically disappear once they are no longer relevant.
+
+### 🎂 Automated Employee Celebrations
+*Boosting morale through automated recognition.*
+- **Birthday Greetings**: Dynamic "Happy Birthday" cards with premium animations automatically appear on an employee's dashboard on their special day.
+- **Work Anniversaries**: Celebrates milestones by highlighting the number of years an employee has dedicated to the team.
+- **Profile Synchronization**: Integrated date-of-birth and joining-date management within the Admin console.
 
 ### 💰 Automated Payroll & Payslip Generation
 *Turn attendance data into actionable financials.*
@@ -48,7 +61,7 @@
 ### 🌍 Deep Localization (India-Optimized)
 *Built for the nuances of the Indian workplace.*
 - **Timezone Locking**: All data is strictly normalized to Indian Standard Time (`Asia/Kolkata`), preventing drift across devices.
-- **Holiday Engine**: Built-in Gazetted and Restricted holiday calendars. Admins can easily toggle which holidays apply to which branches.
+- **Google Calendar Integration**: Automatically syncs public holidays directly from the Google Calendar API, ensuring the most up-to-date holiday schedules without manual entry.
 - **Format Standards**: Currency defaults to ₹ (INR), and dates follow the DD/MM/YYYY standard.
 
 ### 📊 Comprehensive Reporting & Dashboards
@@ -90,6 +103,7 @@ Create a `.env` file in the root:
 ```env
 VITE_SUPABASE_URL=your_project_url
 VITE_SUPABASE_ANON_KEY=your_anon_key
+VITE_GOOGLE_CALENDAR_API_KEY=your_google_calendar_key
 ```
 
 ### 3. Database Initialization

@@ -5,7 +5,7 @@ import { MonthlyRateChart, DepartmentBarChart, WeeklyTrendChart } from "@/compon
 import { TrendingUp, Clock, CalendarCheck, Users, Download } from "lucide-react";
 import { StatCard } from "@/components/common/StatCard";
 import { statusMeta, type AttendanceStatus } from "@/lib/mock-data";
-import { cn } from "@/lib/utils";
+import { cn, isWeekend } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useSettings } from "@/lib/settings-context";
 import { useAuth } from "@/lib/auth";
@@ -39,6 +39,9 @@ function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [muster, setMuster] = useState<any[]>([]);
   const [payslips, setPayslips] = useState<any[]>([]);
+  const [shifts, setShifts] = useState<any[]>([]);
+  const [schedule, setSchedule] = useState<any[]>([]);
+  const [holidays, setHolidays] = useState<any[]>([]);
   const [stats, setStats] = useState({
     avgAttendance: "0%",
     onTimeRate: "0%",
@@ -62,13 +65,20 @@ function ReportsPage() {
       
       // Fetch current month attendance
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString();
+      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString();
       
       const { data: attendance } = await supabase
           .from("attendance")
           .select("*")
-          .gte("created_at", startOfMonth)
-          .lte("created_at", endOfMonth);
+          .gte("check_in", startOfMonth)
+          .lt("check_in", endOfMonth);
+
+      // Fetch leaves for this month
+      const { data: leaves } = await supabase
+          .from("leaves")
+          .select("*")
+          .eq("status", "Approved")
+          .or(`from_date.lte.${endOfMonth},to_date.gte.${startOfMonth}`);
 
       // Fetch last 6 months for monthly rate
       const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString();
@@ -77,18 +87,43 @@ function ReportsPage() {
           .select("*")
           .gte("created_at", sixMonthsAgo);
 
+      // Fetch Shifts and Schedule
+      const { data: s } = await supabase.from("shifts").select("*");
+      const { data: sch } = await supabase.from("shift_schedule").select("*");
+      const { data: h } = await supabase.from("company_holidays").select("*");
+
+      if (s) setShifts(s);
+      if (sch) setSchedule(sch);
+      if (h) setHolidays(h);
+
       if (profiles && attendance) {
         // Build Muster Roll
         const musterRoll = profiles.map(p => {
           const row = Array.from({ length: daysInMonth }, (_, i) => {
             const day = i + 1;
-            const rec = attendance.find(a => a.user_id === p.id && new Date(a.created_at).getDate() === day);
+            const date = new Date(today.getFullYear(), today.getMonth(), day);
+            const dayStr = date.toISOString().split('T')[0];
+            const dow = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][date.getDay()];
+
+            const rec = attendance?.find(a => a.user_id === p.id && new Date(a.check_in || a.created_at).getDate() === day);
             if (rec) return rec.status as AttendanceStatus;
             
-            const date = new Date(today.getFullYear(), today.getMonth(), day);
-            const dow = date.getDay();
-            if (dow === 0 || dow === 6) return "weekend" as AttendanceStatus;
-            return "none" as AttendanceStatus;
+            const onLeave = leaves?.find(l => l.user_id === p.id && dayStr >= l.from_date && dayStr <= l.to_date);
+            if (onLeave) return "leave" as AttendanceStatus;
+
+            // Check for shifts on holidays
+            const isH = h?.some(holiday => holiday.date === dayStr);
+            const userSched = sch?.find(s => s.user_id === p.id);
+            const shiftId = userSched?.[dow];
+            const shift = s?.find(sh => sh.id === shiftId);
+
+            if (isH) {
+              if (shift?.work_on_holidays) return "absent" as AttendanceStatus;
+              return "holiday" as AttendanceStatus;
+            }
+
+            if (isWeekend(date, settings?.weekend_type)) return "weekend" as AttendanceStatus;
+            return "absent" as AttendanceStatus;
           });
           return { id: p.id, name: p.name, role: p.role, row };
         });
@@ -112,12 +147,24 @@ function ReportsPage() {
             const d = new Date();
             d.setDate(d.getDate() - i);
             const dateStr = d.toLocaleDateString('en-US', { weekday: 'short' });
-            const dayAtt = attendance.filter(a => new Date(a.created_at).toDateString() === d.toDateString());
+            const dateIso = d.toISOString().split('T')[0];
+            const dayAtt = attendance.filter(a => new Date(a.check_in || a.created_at).toDateString() === d.toDateString());
+            
+            const present = dayAtt.filter(a => a.status === 'present').length;
+            const late = dayAtt.filter(a => a.status === 'late').length;
+            const onLeaveCount = leaves?.filter(l => l.status === 'Approved' && dateIso >= l.from_date && dateIso <= l.to_date).length || 0;
+            
+            // Calculate absent: Total - (Present + Late + Leave)
+            // Exclude weekends from absent calculation if desired, but here we just show daily trend
+            const totalEmployees = profiles.length;
+            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+            const absent = isWeekend ? 0 : Math.max(0, totalEmployees - (present + late + onLeaveCount));
+
             weekly.push({
                 day: dateStr,
-                present: dayAtt.filter(a => a.status === 'present').length,
-                late: dayAtt.filter(a => a.status === 'late').length,
-                absent: dayAtt.filter(a => a.status === 'absent').length
+                present,
+                late,
+                absent
             });
         }
         setWeeklyData(weekly);

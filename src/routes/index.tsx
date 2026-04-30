@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CalendarCheck, CalendarX, Clock, Plane, CalendarDays, Camera, Bell, ArrowRight, Wallet } from "lucide-react";
+import { CalendarCheck, CalendarX, Clock, Plane, CalendarDays, Camera, Bell, ArrowRight, Wallet, Megaphone, PartyPopper, Pin, Info, AlertTriangle, AlertCircle } from "lucide-react";
 import { HeroBanner } from "@/components/common/Illustrations";
 import { StatCard } from "@/components/common/StatCard";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -33,6 +33,8 @@ function Dashboard() {
   });
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [celebration, setCelebration] = useState<{ type: 'birthday' | 'anniversary', years?: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -100,6 +102,36 @@ function Dashboard() {
         }
         setWeeklyData(weekly);
 
+        // Fetch Announcements
+        const { data: ann } = await supabase
+          .from("announcements")
+          .select("*")
+          .eq("is_active", true)
+          .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+          .order("is_pinned", { ascending: false })
+          .order("created_at", { ascending: false });
+        if (ann) setAnnouncements(ann);
+
+        // Check for Celebrations
+        if (profile?.dob || profile?.joining_date) {
+          const now = new Date();
+          const todayM = now.getMonth() + 1; // 1-indexed for string comparison
+          const todayD = now.getDate();
+
+          if (profile.dob) {
+            const [y, m, d] = profile.dob.split('-').map(Number);
+            if (m === todayM && d === todayD) {
+              setCelebration({ type: 'birthday' });
+            }
+          }
+
+          if (profile.joining_date) {
+            const [y, m, d] = profile.joining_date.split('-').map(Number);
+            if (m === todayM && d === todayD && y < now.getFullYear()) {
+              setCelebration({ type: 'anniversary', years: now.getFullYear() - y });
+            }
+          }
+        }
       }
       setLoading(false);
     }
@@ -113,6 +145,64 @@ function Dashboard() {
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
+      {/* Announcements Bar */}
+      {announcements.length > 0 && (
+        <div className="space-y-3">
+          {announcements.map(a => (
+            <div key={a.id} className={cn(
+              "relative overflow-hidden rounded-[1.5rem] border p-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500",
+              a.type === 'critical' ? "border-destructive/30 bg-destructive/10 text-destructive-foreground" :
+              a.type === 'warning' ? "border-warning/30 bg-warning/10" :
+              a.type === 'success' ? "border-success/30 bg-success/10" :
+              "border-primary/20 bg-primary/10"
+            )}>
+              <div className="flex items-start gap-4">
+                <div className={cn(
+                  "mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                  a.type === 'critical' ? "bg-destructive/20" :
+                  a.type === 'warning' ? "bg-warning/20 text-warning-foreground" :
+                  a.type === 'success' ? "bg-success/20 text-success" :
+                  "bg-primary/20 text-primary"
+                )}>
+                  {a.type === 'critical' ? <AlertCircle className="h-5 w-5" /> :
+                   a.type === 'warning' ? <AlertTriangle className="h-5 w-5" /> :
+                   a.type === 'success' ? <Megaphone className="h-5 w-5" /> :
+                   <Info className="h-5 w-5" />}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-black uppercase tracking-wider">{a.title}</h4>
+                    {a.is_pinned && <Pin className="h-3 w-3 fill-current opacity-70" />}
+                  </div>
+                  <p className="mt-1 text-sm font-medium opacity-80">{a.content}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Celebration Card */}
+      {celebration && (
+        <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-6 text-white shadow-elegant animate-bounce-subtle">
+          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/20 blur-3xl" />
+          <div className="absolute -left-10 -bottom-10 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
+          <div className="relative flex items-center gap-6">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md">
+              <PartyPopper className="h-10 w-10 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black tracking-tight">
+                {celebration.type === 'birthday' ? "Happy Birthday! 🎂" : `Happy ${celebration.years} Year Anniversary! 🎉`}
+              </h2>
+              <p className="text-sm font-bold opacity-90 uppercase tracking-widest mt-1">
+                {celebration.type === 'birthday' ? "We hope you have a fantastic day ahead!" : "Thank you for being an amazing part of our team!"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <HeroBanner name={profile?.name || "User"} attendanceRate={attendanceRate} />
 
       {/* Quick Actions for Mobile */}

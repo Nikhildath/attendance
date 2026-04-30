@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { useBranch } from "@/lib/branch-context";
 import { useAuth } from "@/lib/auth";
+import { useSettings } from "@/lib/settings-context";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -44,6 +45,7 @@ function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: 
 function AttendancePage() {
   const { current, loading: branchLoading } = useBranch();
   const { profile, refreshProfile, user } = useAuth();
+  const { settings } = useSettings();
   const [state, setState] = useState<State>("idle");
   const [now, setNow] = useState<string>("");
   const [markedAt, setMarkedAt] = useState<string>("");
@@ -192,7 +194,33 @@ function AttendancePage() {
         console.warn("Could not get precise location for record, using 0,0");
     }
 
-    const status = isHoliday ? "holiday" : "present"; 
+    let status = isHoliday ? "holiday" : "present"; 
+    
+    // Late status calculation
+    if (!isHoliday && profile?.id) {
+      const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+      const dayName = days[timestamp.getDay()];
+      
+      const { data: schedule } = await supabase
+        .from('shift_schedule')
+        .select(`*, ${dayName}(start_time, type)`)
+        .eq('user_id', profile.id)
+        .maybeSingle();
+
+      const shift = (schedule as any)?.[dayName];
+      if (shift && shift.start_time && shift.type !== 'open') {
+        const [sHour, sMin] = shift.start_time.split(':').map(Number);
+        const shiftStart = new Date(timestamp);
+        shiftStart.setHours(sHour, sMin, 0, 0);
+        
+        const threshold = settings?.late_threshold_mins || 15;
+        const lateTime = new Date(shiftStart.getTime() + threshold * 60000);
+        
+        if (timestamp > lateTime) {
+          status = "late";
+        }
+      }
+    }
     
     if (todayRecord) {
       // Perform Check-Out

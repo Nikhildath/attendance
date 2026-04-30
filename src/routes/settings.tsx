@@ -77,7 +77,9 @@ function SettingsPage() {
             company_name: formData.company_name,
             late_threshold_mins: formData.late_threshold_mins,
             late_fine_amount: formData.late_fine_amount,
-            working_hours_per_day: formData.working_hours_per_day
+            working_hours_per_day: formData.working_hours_per_day,
+            overtime_rate: formData.overtime_rate,
+            weekend_type: formData.weekend_type
           });
 
        if (!sErr) {
@@ -241,6 +243,27 @@ function WorkSettings({ data, onChange, isAdmin }: { data: any; onChange: (d: an
             onChange={e => onChange({ working_hours_per_day: parseFloat(e.target.value) })}
             readOnly={!isAdmin}
           />
+        </Field>
+        <Field label="Overtime Rate (per hour)">
+          <input 
+            className={inputClass} 
+            type="number" 
+            value={data.overtime_rate} 
+            onChange={e => onChange({ overtime_rate: parseFloat(e.target.value) })}
+            readOnly={!isAdmin}
+          />
+        </Field>
+        <Field label="Weekend Configuration">
+          <select 
+            className={inputClass} 
+            value={data.weekend_type || 'second_saturday_sundays'} 
+            onChange={e => onChange({ weekend_type: e.target.value })}
+            disabled={!isAdmin}
+          >
+            <option value="second_saturday_sundays">Sundays & 2nd Saturday</option>
+            <option value="all_saturdays_sundays">Sundays & All Saturdays</option>
+            <option value="only_sundays">Sundays Only</option>
+          </select>
         </Field>
         <Field label="Timezone">
           <input 

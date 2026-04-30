@@ -61,57 +61,68 @@ export function HolidayManager({ branches }: { branches: any[] }) {
   };
 
   const fetchPublicHolidays = async () => {
+    const apiKey = import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY;
+    if (!apiKey) {
+      return toast.error("VITE_GOOGLE_CALENDAR_API_KEY is missing. Please add it to your .env file.");
+    }
+
     if (!countryCode || countryCode.length !== 2) {
       return toast.error("Please enter a valid 2-letter country code (e.g., IN, US)");
     }
 
-    toast.loading("Fetching holidays...", { id: "fetch" });
+    const GOOGLE_CALENDAR_IDS: Record<string, string> = {
+      "IN": "en.indian#holiday@group.v.calendar.google.com",
+      "US": "en.usa#holiday@group.v.calendar.google.com",
+      "GB": "en.uk#holiday@group.v.calendar.google.com",
+      "DE": "en.german#holiday@group.v.calendar.google.com",
+      "FR": "en.french#holiday@group.v.calendar.google.com",
+      "CA": "en.canadian#holiday@group.v.calendar.google.com",
+      "AU": "en.australian#holiday@group.v.calendar.google.com",
+      "JP": "en.japanese#holiday@group.v.calendar.google.com",
+      "BR": "en.brazilian#holiday@group.v.calendar.google.com",
+      "ES": "en.spanish#holiday@group.v.calendar.google.com",
+    };
+
+    const calendarId = GOOGLE_CALENDAR_IDS[countryCode] || GOOGLE_CALENDAR_IDS["IN"];
+
+    toast.loading(`Fetching ${countryCode} holidays from Google...`, { id: "fetch" });
     try {
-      let toInsert: any[] = [];
-
-      if (countryCode === "IN") {
-        // Fallback for India as Nager.Date doesn't support it
-        toInsert = [
-          { name: "New Year's Day", date: `${year}-01-01` },
-          { name: "Republic Day", date: `${year}-01-26` },
-          { name: "Holi", date: `${year}-03-14` }, // Approximate, usually varies
-          { name: "Independence Day", date: `${year}-08-15` },
-          { name: "Gandhi Jayanti", date: `${year}-10-02` },
-          { name: "Diwali", date: `${year}-10-21` }, // Approximate
-          { name: "Christmas Day", date: `${year}-12-25` },
-        ].map(h => ({ ...h, kind: "public", region: "India", branch_id: null }));
-      } else {
-        const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${countryCode}`);
-        
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`API Error: ${res.status}. ${text.slice(0, 50)}`);
-        }
-
-        const contentType = res.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          const text = await res.text();
-          throw new Error(`API returned non-JSON. This country (${countryCode}) may not be supported.`);
-        }
-
-        const data = await res.json();
-        if (!Array.isArray(data) || data.length === 0) {
-          throw new Error("No holidays found for this country and year.");
-        }
-        
-        toInsert = data.map((h: any) => ({
-          name: h.localName || h.name,
-          date: h.date,
-          kind: "public",
-          region: countryCode,
-          branch_id: null
-        }));
+      const timeMin = new Date(year, 0, 1).toISOString();
+      const timeMax = new Date(year, 11, 31).toISOString();
+      
+      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${apiKey}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true`);
+      
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error?.message || `API Error: ${res.status}`);
       }
 
-      const { error } = await supabase.from("company_holidays").insert(toInsert);
+      const data = await res.json();
+      if (!data.items || data.items.length === 0) {
+        throw new Error("No holidays found in Google Calendar for this country and year.");
+      }
+      
+      const toInsert = data.items.map((h: any) => ({
+        name: h.summary,
+        date: h.start.date || h.start.dateTime.split("T")[0],
+        kind: "public",
+        region: countryCode === "IN" ? "India" : countryCode,
+        branch_id: null
+      }));
+
+      // Filter out duplicates if they already exist in the database
+      const { data: existing } = await supabase.from("company_holidays").select("date, name");
+      const filtered = toInsert.filter((h: any) => !existing?.some(e => e.date === h.date && e.name === h.name));
+
+      if (filtered.length === 0) {
+        toast.info("All holidays are already imported.", { id: "fetch" });
+        return;
+      }
+
+      const { error } = await supabase.from("company_holidays").insert(filtered);
       if (error) throw error;
       
-      toast.success(`Imported ${toInsert.length} holidays`, { id: "fetch" });
+      toast.success(`Imported ${filtered.length} holidays from Google Calendar`, { id: "fetch" });
       loadHolidays();
     } catch (err: any) {
       console.error(err);
@@ -173,7 +184,7 @@ export function HolidayManager({ branches }: { branches: any[] }) {
             <Button variant="outline" className="w-full gap-2" onClick={fetchPublicHolidays}>
               <Download className="h-4 w-4" /> Fetch & Import
             </Button>
-            <div className="text-[10px] text-center text-muted-foreground">Powered by Nager.Date API</div>
+            <div className="text-[10px] text-center text-muted-foreground">Powered by Google Calendar API</div>
           </div>
         </div>
       </div>

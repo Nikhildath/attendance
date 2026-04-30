@@ -36,11 +36,12 @@ function TeamPage() {
     const { data: profs } = await supabase.from("profiles").select("*");
     
     // Fetch today's attendance for everyone
-    const today = new Date().toISOString().split('T')[0];
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
     const { data: att } = await supabase
       .from("attendance")
       .select("*")
-      .gte("created_at", today);
+      .gte("check_in", todayStart.toISOString());
 
     if (profs) {
       const merged = profs.map(p => {
@@ -48,6 +49,7 @@ function TeamPage() {
         return {
           ...p,
           checkIn: record?.check_in ? new Date(record.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—",
+          checkOut: record?.check_out ? new Date(record.check_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—",
           status: record?.status || "none"
         };
       });
@@ -106,6 +108,7 @@ function TeamPage() {
                   <th className="px-5 py-3">Employee</th>
                   <th className="px-5 py-3">Role</th>
                   <th className="px-5 py-3">Check-In</th>
+                  <th className="px-5 py-3">Check-Out</th>
                   <th className="px-5 py-3">Status</th>
                 </tr>
               </thead>
@@ -121,7 +124,8 @@ function TeamPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3 text-muted-foreground">{m.role}</td>
-                    <td className="px-5 py-3 font-mono text-xs">{m.checkIn}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-success">{m.checkIn}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-warning-foreground">{m.checkOut}</td>
                     <td className="px-5 py-3"><StatusBadge status={m.status} /></td>
                   </tr>
                 ))}

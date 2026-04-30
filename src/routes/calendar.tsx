@@ -6,6 +6,8 @@ import { MonthCalendar } from "@/components/calendar/MonthCalendar";
 import { Download, Filter } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { useSettings } from "@/lib/settings-context";
+import { isWeekend } from "@/lib/utils";
 
 export const Route = createFileRoute("/calendar")({
   head: () => ({
@@ -19,6 +21,7 @@ export const Route = createFileRoute("/calendar")({
 
 function CalendarPage() {
   const { profile } = useAuth();
+  const { settings } = useSettings();
   const [holidays, setHolidays] = useState<{ date: string; localName: string }[]>([]);
   const [stats, setStats] = useState({ present: 0, absent: 0, late: 0, leave: 0 });
   const [loading, setLoading] = useState(true);
@@ -70,11 +73,35 @@ function CalendarPage() {
         .lte("to_date", end.split('T')[0]);
 
       if (att) {
+        const presentCount = att.filter(a => a.status === 'present').length;
+        const lateCount = att.filter(a => a.status === 'late').length;
+        const leaveCount = lvs?.length || 0;
+        
+        // Calculate absent days from attendance records (where status was explicitly set to absent if any)
+        // plus inferred absent days from MonthCalendar logic (days with no record)
+        const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+        const currentDay = today.getDate();
+        
+        let inferredAbsent = 0;
+        for (let d = 1; d < currentDay; d++) {
+          const date = new Date(today.getFullYear(), today.getMonth(), d);
+          const dow = date.getDay();
+          const hasRecord = att.some(a => new Date(a.check_in || a.created_at).getDate() === d);
+          const hasLeave = lvs?.some(l => {
+            const dayStr = date.toISOString().split('T')[0];
+            return dayStr >= l.from_date && dayStr <= l.to_date;
+          });
+          
+          if (!hasRecord && !hasLeave && !isWeekend(date, settings?.weekend_type)) {
+             inferredAbsent++;
+          }
+        }
+
         setStats({
-          present: att.filter(a => a.status === 'present').length,
-          absent: att.filter(a => a.status === 'absent').length,
-          late: att.filter(a => a.status === 'late').length,
-          leave: lvs?.length || 0
+          present: presentCount,
+          absent: inferredAbsent + att.filter(a => a.status === 'absent').length,
+          late: lateCount,
+          leave: leaveCount
         });
       }
       setLoading(false);
@@ -157,7 +184,7 @@ function CalendarPage() {
 
           <div className="rounded-xl border bg-card p-5 shadow-card">
             <h3 className="text-sm font-semibold">Upcoming Holidays</h3>
-            <p className="text-[11px] text-muted-foreground">Live from Nager.Date</p>
+            <p className="text-[11px] text-muted-foreground">Live from Google Calendar</p>
             {upcoming.length === 0 ? (
               <p className="mt-4 text-xs text-muted-foreground">No upcoming holidays found.</p>
             ) : (

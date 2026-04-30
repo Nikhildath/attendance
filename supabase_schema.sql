@@ -34,6 +34,8 @@
       face_descriptor jsonb,
       password text, -- For custom login bypass if needed
       branch_id uuid references public.branches(id) on delete set null,
+      dob date,
+      joining_date date,
       created_at timestamptz default now(),
       updated_at timestamptz default now()
   );
@@ -119,6 +121,7 @@
       end_time text,
       break_minutes integer default 60,
       color text default 'bg-primary/10 text-primary border-primary/30',
+      work_on_holidays boolean default false,
       created_at timestamptz default now()
   );
 
@@ -188,6 +191,19 @@
       created_at timestamptz default now()
   );
 
+  -- Announcements (Broadcasts)
+  create table public.announcements (
+      id uuid primary key default gen_random_uuid(),
+      title text not null,
+      content text,
+      type text default 'info' check (type in ('info', 'success', 'warning', 'critical')),
+      is_pinned boolean default false,
+      is_active boolean default true,
+      created_at timestamptz default now(),
+      expires_at timestamptz,
+      created_by uuid references public.profiles(id) on delete set null
+  );
+
   -- 3. FUNCTIONS & RPCs
 
   -- Helper: Check if user is Admin
@@ -245,7 +261,9 @@
       p_dept text, 
       p_password text, 
       p_face boolean,
-      p_branch_id uuid default null
+      p_branch_id uuid default null,
+      p_dob date default null,
+      p_joining_date date default null
   )
   returns void as $$
   BEGIN
@@ -258,6 +276,8 @@
         password = p_password, 
         face_registered = p_face, 
         branch_id = p_branch_id,
+        dob = p_dob,
+        joining_date = p_joining_date,
         updated_at = NOW()
       WHERE id = p_id;
     ELSE
@@ -286,7 +306,9 @@
       p_name text,
       p_role text,
       p_dept text,
-      p_password text
+      p_password text,
+      p_dob date default null,
+      p_joining_date date default null
   )
   returns jsonb as $$
   DECLARE
@@ -316,13 +338,15 @@
     END IF;
 
     -- Now safely insert the profile
-    INSERT INTO public.profiles (id, email, name, role, dept, password)
-    VALUES (p_id, p_email, p_name, p_role, p_dept, p_password)
+    INSERT INTO public.profiles (id, email, name, role, dept, password, dob, joining_date)
+    VALUES (p_id, p_email, p_name, p_role, p_dept, p_password, p_dob, p_joining_date)
     ON CONFLICT (id) DO UPDATE SET
       name = EXCLUDED.name,
       role = EXCLUDED.role,
       dept = EXCLUDED.dept,
       password = EXCLUDED.password,
+      dob = EXCLUDED.dob,
+      joining_date = EXCLUDED.joining_date,
       updated_at = NOW();
 
     RETURN jsonb_build_object('success', true, 'id', p_id);
@@ -477,6 +501,7 @@
   alter table public.company_holidays disable row level security;
   alter table public.comp_off_requests disable row level security;
   alter table public.financial_requests disable row level security;
+  alter table public.announcements disable row level security;
 
   -- Grant all privileges to all authenticated and anonymous users for this project
   GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
