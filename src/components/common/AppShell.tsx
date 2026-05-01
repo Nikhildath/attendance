@@ -3,7 +3,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { cn } from "@/lib/utils";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, Camera, CalendarDays, User, LayoutGrid } from "lucide-react";
+import { Home, Camera, CalendarDays, User, LayoutGrid, MessageSquare } from "lucide-react";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -43,7 +43,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}>
         <div className="grid h-full grid-cols-5 items-center">
           <MobileNavLink to="/" icon={Home} label="Home" />
-          <MobileNavLink to="/reports" icon={LayoutGrid} label="Reports" />
+          <MobileNavLink to="/chat" icon={MessageSquare} label="Chat" />
           <div className="flex flex-col items-center justify-center -translate-y-5">
             <Link 
               to="/attendance" 

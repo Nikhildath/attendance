@@ -55,6 +55,7 @@
     "embla-carousel-react": "^8.6.0",
     "express": "^5.2.1",
     "face-api.js": "^0.22.2",
+    "framer-motion": "^12.38.0",
     "input-otp": "^1.4.2",
     "leaflet": "1.9.4",
     "lucide-react": "^0.575.0",

@@ -1,7 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard, Calendar, Clock, FileText, BarChart3, Settings, Users, Shield,
-  ChevronLeft, Wallet, CalendarRange, PartyPopper, Banknote, MapPinned, Sparkles,
+  ChevronLeft, Wallet, CalendarRange, PartyPopper, Banknote, MapPinned, Sparkles, MessageSquare
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -16,6 +16,7 @@ const nav = [
   { to: "/shifts", label: "Shifts", icon: CalendarRange },
   { to: "/payroll", label: "Payroll", icon: Wallet },
   { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/chat", label: "Chat", icon: MessageSquare },
 ] as const;
 
 const roleNav = [

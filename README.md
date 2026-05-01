@@ -84,10 +84,14 @@
 - **Push-Ready Architecture**: Built-in support for service worker-based updates and notifications.
 - **Premium Branding**: Custom generated icons and mobile-optimized viewport settings.
 
-### 🛡️ Enterprise-Grade Security & Roles (RBAC)
-- **Three-Tier Architecture**: Distinct interfaces and capabilities for **Employees**, **Managers**, and **Admins**.
-- **Dual-Mode Login**: Use standard Supabase Auth, or utilize our Custom Login engine for rapid field deployments without complex email confirmations.
-- **Database Hardening**: Built on PostgreSQL with Row Level Security (RLS) and Security Definer RPCs to ensure data is never leaked or tampered with.
+### 💬 Premium Multi-Database Chat System
+*A standalone, secure, and fully-featured team communication hub.*
+- **Dual-Database Architecture**: Chat data is completely isolated in a secondary Supabase project for maximum security and performance scaling, synchronized with the main application seamlessly.
+- **Rich Media & Voice Notes**: Fully supports image, video, file attachments, and WhatsApp-style embedded voice recordings with native audio playback.
+- **Browser Notifications**: Integrated directly with the native OS to send real-time alerts when new messages arrive.
+- **Admin Workspace Tools**: Administrators can export entire channels as JSON backups or trigger bulk-downloads of all media shared in a channel.
+- **Automated Data Retention**: Implemented a `pg_cron` backend policy to automatically purge messages older than 30 days to save storage and ensure compliance.
+- **Glassmorphism Design**: Features an ultra-premium, responsive UI that automatically adapts to Light and Dark modes with fluid animations and hover-to-download overlays.
 
 ---
 
@@ -102,6 +106,8 @@
 | **Hosting** | Render / Netlify (CI/CD Optimized) |
 
 ## Recent Updates & Fixes (May 2026)
+*   **Premium Isolated Chat System**: Built and integrated a stunning, full-featured workspace chat module utilizing a secondary Supabase database. Includes real-time messaging, voice recording, file sharing, and automated profile syncing.
+*   **Chat Media Enhancements**: Added hover-to-download buttons for media, native browser notification API integration, and fixed real-time deletion synchronization.
 *   **Database Overloading Fix**: Cleaned up the Supabase database to remove outdated, overloaded versions of `admin_update_profile` and `admin_insert_profile`. This resolves an issue where updating Date of Birth (DOB) and Joining Date fields on the admin panel was silently failing due to PostgREST ambiguity errors.
 *   **Robust Date Handling**: Updated the frontend to explicitly map empty strings from date inputs to SQL `null` values, preventing Postgres type-casting errors.
 *   **PWA Conversion**: Successfully converted the application into a Progressive Web App (PWA) with custom icons and service worker integration.

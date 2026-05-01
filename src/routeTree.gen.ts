@@ -19,6 +19,7 @@ import { Route as LeavesRouteImport } from './routes/leaves'
 import { Route as HolidaysRouteImport } from './routes/holidays'
 import { Route as FieldTrackingRouteImport } from './routes/field-tracking'
 import { Route as CompOffsRouteImport } from './routes/comp-offs'
+import { Route as ChatRouteImport } from './routes/chat'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as AttendanceRouteImport } from './routes/attendance'
 import { Route as AdvancesRouteImport } from './routes/advances'
@@ -75,6 +76,11 @@ const CompOffsRoute = CompOffsRouteImport.update({
   path: '/comp-offs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CalendarRoute = CalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/advances': typeof AdvancesRoute
   '/attendance': typeof AttendanceRoute
   '/calendar': typeof CalendarRoute
+  '/chat': typeof ChatRoute
   '/comp-offs': typeof CompOffsRoute
   '/field-tracking': typeof FieldTrackingRoute
   '/holidays': typeof HolidaysRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/advances': typeof AdvancesRoute
   '/attendance': typeof AttendanceRoute
   '/calendar': typeof CalendarRoute
+  '/chat': typeof ChatRoute
   '/comp-offs': typeof CompOffsRoute
   '/field-tracking': typeof FieldTrackingRoute
   '/holidays': typeof HolidaysRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/advances': typeof AdvancesRoute
   '/attendance': typeof AttendanceRoute
   '/calendar': typeof CalendarRoute
+  '/chat': typeof ChatRoute
   '/comp-offs': typeof CompOffsRoute
   '/field-tracking': typeof FieldTrackingRoute
   '/holidays': typeof HolidaysRoute
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/advances'
     | '/attendance'
     | '/calendar'
+    | '/chat'
     | '/comp-offs'
     | '/field-tracking'
     | '/holidays'
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/advances'
     | '/attendance'
     | '/calendar'
+    | '/chat'
     | '/comp-offs'
     | '/field-tracking'
     | '/holidays'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/advances'
     | '/attendance'
     | '/calendar'
+    | '/chat'
     | '/comp-offs'
     | '/field-tracking'
     | '/holidays'
@@ -213,6 +225,7 @@ export interface RootRouteChildren {
   AdvancesRoute: typeof AdvancesRoute
   AttendanceRoute: typeof AttendanceRoute
   CalendarRoute: typeof CalendarRoute
+  ChatRoute: typeof ChatRoute
   CompOffsRoute: typeof CompOffsRoute
   FieldTrackingRoute: typeof FieldTrackingRoute
   HolidaysRoute: typeof HolidaysRoute
@@ -297,6 +310,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompOffsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/calendar': {
       id: '/calendar'
       path: '/calendar'
@@ -341,6 +361,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdvancesRoute: AdvancesRoute,
   AttendanceRoute: AttendanceRoute,
   CalendarRoute: CalendarRoute,
+  ChatRoute: ChatRoute,
   CompOffsRoute: CompOffsRoute,
   FieldTrackingRoute: FieldTrackingRoute,
   HolidaysRoute: HolidaysRoute,
