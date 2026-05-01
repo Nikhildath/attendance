@@ -246,7 +246,7 @@ function ShiftModal({ shift, onClose, onSave }: { shift?: any; onClose: () => vo
   const colors = [
     { label: "Indigo", value: "bg-primary/10 text-primary border-primary/30" },
     { label: "Green", value: "bg-success/10 text-success border-success/30" },
-    { label: "Amber", value: "bg-warning/10 text-warning-foreground border-warning-foreground/30" },
+    { label: "Amber", value: "bg-warning/10 text-warning border-warning/30" },
     { label: "Rose", value: "bg-destructive/10 text-destructive border-destructive/30" },
     { label: "Teal", value: "bg-info/10 text-info border-info/30" },
     { label: "Purple", value: "bg-purple-500/10 text-purple-500 border-purple-500/30" },

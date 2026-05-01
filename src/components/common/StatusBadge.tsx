@@ -20,7 +20,7 @@ export function StatusBadge({ status, className }: { status: AttendanceStatus; c
 export function LeaveStatusBadge({ status }: { status: "Approved" | "Pending" | "Rejected" }) {
   const map = {
     Approved: "bg-success/15 text-success border-success/30",
-    Pending: "bg-warning/20 text-warning-foreground border-warning/40",
+    Pending: "bg-warning/20 text-warning border-warning/40",
     Rejected: "bg-destructive/15 text-destructive border-destructive/30",
   };
   return (

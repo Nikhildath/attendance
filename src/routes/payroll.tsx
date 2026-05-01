@@ -304,7 +304,7 @@ function PayrollPage() {
                     ) : (
                         <span className={cn("inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-bold shadow-sm uppercase tracking-wider",
                           p.status === "Paid" ? "border-success/40 bg-success/10 text-success" :
-                          "border-warning/40 bg-warning/15 text-warning-foreground"
+                          "border-warning/40 bg-warning/15 text-warning"
                         )}>
                           {p.status}
                         </span>

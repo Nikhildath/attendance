@@ -132,7 +132,7 @@ function AdvancesPage() {
                     <td className="px-5 py-3 text-center">
                       <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold",
                         r.status === "Approved" ? "border-success/40 bg-success/10 text-success" :
-                        r.status === "Pending" ? "border-warning/40 bg-warning/15 text-warning-foreground" :
+                        r.status === "Pending" ? "border-warning/40 bg-warning/15 text-warning" :
                         "border-destructive/40 bg-destructive/10 text-destructive"
                       )}>{r.status}</span>
                     </td>

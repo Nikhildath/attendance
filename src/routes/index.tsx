@@ -214,7 +214,7 @@ function Dashboard() {
           <QuickActionLink to="/attendance" icon={Camera} label="Punch" color="bg-primary/10 text-primary" />
           <QuickActionLink to="/leaves" icon={Plane} label="Leaves" color="bg-info/10 text-info" />
           <QuickActionLink to="/calendar" icon={CalendarDays} label="Calendar" color="bg-success/10 text-success" />
-          <QuickActionLink to="/payroll" icon={Wallet} label="Payroll" color="bg-warning/10 text-warning-foreground" />
+          <QuickActionLink to="/payroll" icon={Wallet} label="Payroll" color="bg-warning/10 text-warning" />
         </div>
       </div>
 
@@ -292,7 +292,7 @@ function Dashboard() {
                 <div className="flex items-center gap-4">
                   <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", 
                     a.status === 'present' ? "bg-success/10 text-success" : 
-                    a.status === 'late' ? "bg-warning/10 text-warning-foreground" : 
+                    a.status === 'late' ? "bg-warning/10 text-warning" : 
                     "bg-destructive/10 text-destructive")}>
                     <Clock className="h-5 w-5" />
                   </div>

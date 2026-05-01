@@ -19,7 +19,7 @@ export function StatCard({
     default: "bg-primary/10 text-primary",
     success: "bg-success/15 text-success",
     destructive: "bg-destructive/15 text-destructive",
-    warning: "bg-warning/20 text-warning-foreground",
+    warning: "bg-warning/20 text-warning",
     info: "bg-info/15 text-info",
   };
   return (

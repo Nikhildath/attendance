@@ -1,5 +1,5 @@
   -- Attendly Pro: Full Database Schema
-  -- Last Updated: May 2026 (PWA & Field Tracking Optimization)
+  -- Last Updated: May 2026 (Biometric Passkeys & Dark Mode Optimization)
   -- Use this file to set up a new Supabase project.
 
   -- 0. CLEANUP: Drop old overloaded function signatures to prevent PostgREST ambiguity errors.

@@ -150,7 +150,7 @@ function CompOffsPage() {
                         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold",
                         r.status === "Approved" ? "bg-success/10 text-success" :
                         r.status === "Rejected" ? "bg-destructive/10 text-destructive" :
-                        "bg-warning/10 text-warning-foreground"
+                        "bg-warning/10 text-warning"
                       )}>
                         {r.status === "Approved" ? <CheckCircle2 className="h-3.5 w-3.5" /> :
                          r.status === "Rejected" ? <XCircle className="h-3.5 w-3.5" /> :

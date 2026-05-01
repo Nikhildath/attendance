@@ -325,7 +325,7 @@ const DEFAULT_LEAVE_CATEGORIES: LeaveCategory[] = [
   { name: "Unpaid", annual_allowance: 0, is_paid: false, is_active: true, sort_order: 4 },
 ];
 
-const CATEGORY_TONES = ["text-info", "text-success", "text-warning-foreground", "text-destructive", "text-primary"];
+const CATEGORY_TONES = ["text-info", "text-success", "text-warning", "text-destructive", "text-primary"];
 
 function LeaveModal({ categories, onClose, onSubmit }: { categories: LeaveCategory[]; onClose: () => void; onSubmit: (d: any) => void }) {
   const [type, setType] = useState(categories[0]?.name ?? "Casual");

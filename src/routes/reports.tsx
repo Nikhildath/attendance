@@ -408,7 +408,7 @@ function ReportsPage() {
                         <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold",
                           p.status === "Paid" ? "border-success/40 bg-success/10 text-success" :
                           p.status === "Processing" ? "border-info/40 bg-info/10 text-info" :
-                          "border-warning/40 bg-warning/10 text-warning-foreground")}>{p.status}</span>
+                          "border-warning/40 bg-warning/10 text-warning")}>{p.status}</span>
                       </td>
                     </tr>
                   );

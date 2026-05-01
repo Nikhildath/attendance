@@ -11,6 +11,7 @@
 ### 📸 AI-Powered Face Recognition Attendance
 *The ultimate defense against buddy-punching and time theft.*
 - **Biometric Verification**: Users must verify their identity using real-time facial recognition via `face-api.js` before marking attendance.
+- **Passkey Support (Biometrics)**: Mobile users can now register their device biometrics (Fingerprint/FaceID) via WebAuthn/Passkeys for rapid, secure attendance marking without facial scanning.
 - **Admin Enrollment**: To ensure security, face descriptors can only be registered and approved by an Administrator during the onboarding process.
 - **Liveness Detection**: Ensures that a real person is present, combining facial vectors with timestamp and location data.
 
@@ -104,6 +105,8 @@
 *   **Database Overloading Fix**: Cleaned up the Supabase database to remove outdated, overloaded versions of `admin_update_profile` and `admin_insert_profile`. This resolves an issue where updating Date of Birth (DOB) and Joining Date fields on the admin panel was silently failing due to PostgREST ambiguity errors.
 *   **Robust Date Handling**: Updated the frontend to explicitly map empty strings from date inputs to SQL `null` values, preventing Postgres type-casting errors.
 *   **PWA Conversion**: Successfully converted the application into a Progressive Web App (PWA) with custom icons and service worker integration.
+*   **Biometric Passkeys**: Implemented secure device-level biometrics (Fingerprint/FaceID) for mobile attendance marking. Fixed a critical encoding bug in WebAuthn credential handling that caused "device not recognized" errors.
+*   **Dark Mode Optimization**: Performed a global UI audit and refactored the `warning` theme palette to ensure 100% legibility in dark mode across all routes.
 *   **Premium Map Experience**: Upgraded the live field tracking map with the CartoDB Voyager theme, custom CSS filters for clarity, and interactive high-end markers.
 
 ---

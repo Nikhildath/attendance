@@ -42,6 +42,19 @@ function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: 
   return 2 * R * Math.asin(Math.sqrt(sa));
 }
 
+// Helper functions for WebAuthn Base64URL handling
+function base64ToBuffer(base64url: string): Uint8Array {
+  const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = base64.length % 4;
+  const padded = pad ? base64 + "=".repeat(4 - pad) : base64;
+  const binary = window.atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 function AttendancePage() {
   const { current, loading: branchLoading } = useBranch();
   const { profile, refreshProfile, user } = useAuth();
@@ -430,9 +443,9 @@ function AttendancePage() {
           challenge,
           rp: { name: "Attendly Pro", id: window.location.hostname },
           user: {
-            id: Uint8Array.from(profile.id.replace(/-/g, ''), c => c.charCodeAt(0)),
-            name: profile.email,
-            displayName: profile.name
+            id: Uint8Array.from((profile.id || user.id).replace(/-/g, ''), c => c.charCodeAt(0)),
+            name: profile.email || user.email || "user",
+            displayName: profile.name || "User"
           },
           pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }],
           authenticatorSelection: { 
@@ -444,6 +457,7 @@ function AttendancePage() {
       });
 
       if (credential) {
+        console.log("Biometric registration success, credential ID:", (credential as any).id);
         const { error } = await supabase
           .from("profiles")
           .update({ 
@@ -452,10 +466,17 @@ function AttendancePage() {
           })
           .eq("id", profile.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error("Failed to update profile with biometrics:", error);
+          throw error;
+        }
+        
+        // Force refresh multiple times to ensure state is caught up
+        await refreshProfile();
+        setTimeout(() => refreshProfile(), 500);
+        setTimeout(() => refreshProfile(), 1500);
         
         toast.success("Biometrics registered successfully!");
-        await refreshProfile();
       }
     } catch (err: any) {
       console.error("Registration error:", err);
@@ -488,7 +509,7 @@ function AttendancePage() {
             publicKey: {
               challenge: Uint8Array.from("secure-punch", c => c.charCodeAt(0)),
               allowCredentials: [{
-                id: Uint8Array.from((profile as any).biometric_credential_id || "", c => c.charCodeAt(0)),
+                id: base64ToBuffer((profile as any).biometric_credential_id || ""),
                 type: 'public-key'
               }],
               userVerification: "required"
@@ -504,8 +525,14 @@ function AttendancePage() {
         
         await new Promise(res => setTimeout(res, 800));
       } catch (e: any) {
-        console.error("Biometric error:", e);
-        toast.error(e.message || "Verification failed.");
+        console.error("Biometric error details:", e);
+        if (e.name === "NotAllowedError") {
+          toast.error("Verification cancelled or timed out.");
+        } else if (e.name === "InvalidStateError") {
+          toast.error("This device does not recognize the registered passkey.");
+        } else {
+          toast.error(e.message || "Verification failed.");
+        }
         setState("idle");
         return;
       }
@@ -553,7 +580,7 @@ function AttendancePage() {
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
         <div className="rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-5 md:p-8 shadow-sm transition-all hover:shadow-elegant">
           {(!modelsLoaded && profile?.role === "Admin") && (
-            <div className="mb-4 rounded-lg bg-warning/10 p-3 text-[11px] text-warning-foreground border border-warning/30 flex items-center justify-between">
+            <div className="mb-4 rounded-lg bg-warning/10 p-3 text-[11px] text-warning border border-warning/30 flex items-center justify-between">
               <span>⚠️ Models failing to load? You can bypass for testing.</span>
               <button onClick={saveAttendance} className="underline font-bold">Skip & Mark</button>
             </div>
@@ -575,7 +602,7 @@ function AttendancePage() {
                   <Loader2 className="h-10 w-10 animate-spin text-primary" />
                   <div className="text-sm font-semibold">Processing...</div>
                 </div>
-              ) : state === "success" ? (
+              ) : (state === "success" && (punchMode === "web" || todayRecord?.check_out)) ? (
                 <div className="animate-in fade-in zoom-in duration-300">
                   <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-success/15">
                     <CheckCircle2 className="h-10 w-10 text-success" />
@@ -625,6 +652,12 @@ function AttendancePage() {
                                       ))}
                                     </div>
                                     <span className="text-[11px] font-black text-primary uppercase tracking-[0.25em] animate-pulse">Tap to verify identity</span>
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); registerBiometrics(); }}
+                                      className="pointer-events-auto mt-2 text-[9px] font-bold text-muted-foreground hover:text-primary transition-colors underline decoration-dotted"
+                                    >
+                                      Register Again?
+                                    </button>
                                   </>
                               )}
                             </div>
@@ -688,7 +721,7 @@ function AttendancePage() {
           </div>
 
           {errorMsg && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs text-warning-foreground">
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs text-warning">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="flex-1">
                 <div>{errorMsg}</div>
@@ -778,7 +811,7 @@ function GeoStatusCard({ geo, branchName, distance, radius, current }: { geo: Ge
     unknown:  { tone: "bg-muted/40 border-border text-muted-foreground", label: "Waiting for check…", icon: MapPin },
     checking: { tone: "bg-info/10 border-info/30 text-info",            label: "Locating you…",          icon: Loader2 },
     inside:   { tone: "bg-success/10 border-success/30 text-success",   label: `Inside ${branchName}`,   icon: ShieldCheck },
-    outside:  { tone: "bg-warning/15 border-warning/40 text-warning-foreground", label: "Outside geo-fence", icon: AlertTriangle },
+    outside:  { tone: "bg-warning/15 border-warning/40 text-warning", label: "Outside geo-fence", icon: AlertTriangle },
     denied:   { tone: "bg-destructive/10 border-destructive/30 text-destructive", label: "Location denied", icon: AlertTriangle },
   }[geo];
 
@@ -786,7 +819,7 @@ function GeoStatusCard({ geo, branchName, distance, radius, current }: { geo: Ge
 
   if (!hasCoords && geo !== "denied" && geo !== "checking") {
       return (
-        <div className="flex items-center gap-3 rounded-xl border bg-warning/10 border-warning/30 p-3 text-warning-foreground">
+        <div className="flex items-center gap-3 rounded-xl border bg-warning/10 border-warning/30 p-3 text-warning">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-background/50">
             <AlertTriangle className="h-5 w-5" />
           </div>

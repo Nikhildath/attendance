@@ -19,7 +19,7 @@ export const Route = createFileRoute("/holidays")({
 
 const kindMeta: any = {
   public:     { label: "Public",     cls: "border-holiday/40 bg-holiday/10 text-holiday" },
-  restricted: { label: "Restricted", cls: "border-warning/40 bg-warning/15 text-warning-foreground" },
+  restricted: { label: "Restricted", cls: "border-warning/40 bg-warning/15 text-warning" },
   optional:   { label: "Optional",   cls: "border-info/40 bg-info/10 text-info" },
 };
 
@@ -151,7 +151,7 @@ function HolidaysPage() {
                     <td className="px-5 py-3">
                       <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold",
                         c.status === "Approved" ? "border-success/40 bg-success/10 text-success" :
-                        c.status === "Pending" ? "border-warning/40 bg-warning/15 text-warning-foreground" :
+                        c.status === "Pending" ? "border-warning/40 bg-warning/15 text-warning" :
                         "border-destructive/40 bg-destructive/10 text-destructive"
                       )}>{c.status}</span>
                     </td>

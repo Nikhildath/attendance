@@ -414,7 +414,7 @@ function FieldTrackingPage() {
 
       <div className="mb-4 grid grid-cols-3 gap-3 md:grid-cols-4">
         <PillStat label="Active" value={counts.active} cls="bg-success/10 text-success border-success/30" />
-        <PillStat label="Idle" value={counts.idle} cls="bg-warning/15 text-warning-foreground border-warning/40" />
+        <PillStat label="Idle" value={counts.idle} cls="bg-warning/15 text-warning border-warning/40" />
         <PillStat label="Offline" value={counts.offline} cls="bg-muted text-muted-foreground border-border" />
         <PillStat 
           label="Supabase" 

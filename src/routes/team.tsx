@@ -125,7 +125,7 @@ function TeamPage() {
                     </td>
                     <td className="px-5 py-3 text-muted-foreground">{m.role}</td>
                     <td className="px-5 py-3 font-mono text-xs text-success">{m.checkIn}</td>
-                    <td className="px-5 py-3 font-mono text-xs text-warning-foreground">{m.checkOut}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-warning">{m.checkOut}</td>
                     <td className="px-5 py-3"><StatusBadge status={m.status} /></td>
                   </tr>
                 ))}
