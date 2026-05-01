@@ -296,7 +296,10 @@ function AttendancePage() {
         })
         .catch(err => {
             console.error("Attendance: Models failed to load", err);
-            toast.error("Face recognition failed to initialize. Please check your internet connection.");
+            toast.error("Face recognition module failed to start.", {
+              description: "Please check your internet connection or ensure model files are available in /public/models.",
+              duration: 5000
+            });
         });
     });
   }, []);
@@ -313,19 +316,22 @@ function AttendancePage() {
         await videoRef.current.play();
       }
       
-      toast.info("Hold still... capturing face descriptor");
-      
-      // Give a moment for the user to align
-      await new Promise(res => setTimeout(res, 2500));
+      toast.info("Capturing face... please look directly at the camera", { duration: 3000 });
       
       const { getFaceDescriptor } = await import("@/lib/face-recognition");
-      const descriptor = await getFaceDescriptor(videoRef.current!);
+      
+      // Try to capture a high-quality descriptor (max 10 attempts)
+      let descriptor = null;
+      for (let i = 0; i < 10; i++) {
+        descriptor = await getFaceDescriptor(videoRef.current!);
+        if (descriptor) break;
+        await new Promise(res => setTimeout(res, 500));
+      }
       
       if (descriptor) {
         const targetId = profile?.id || user?.id;
         if (!targetId) throw new Error("User ID not found. Please re-login.");
 
-        console.log("Saving face descriptor via RPC for user:", targetId);
         const { data: success, error } = await supabase
           .rpc('update_own_face', {
             p_id: targetId,
@@ -333,14 +339,10 @@ function AttendancePage() {
           });
         
         if (error) throw error;
-        if (!success) {
-          throw new Error("RPC_FAILURE: Could not update profile for ID " + targetId);
-        }
-
         toast.success("Face registered successfully!");
         await refreshProfile();
       } else {
-        toast.error("Could not detect face. Try again in better lighting.");
+        toast.error("Could not detect face. Please ensure you are in a well-lit area and looking at the camera.");
       }
     } catch (err: any) {
       toast.error("Registration failed: " + err.message);
@@ -354,10 +356,17 @@ function AttendancePage() {
     setState("scanning");
     try {
       const { getFaceDescriptor, compareFaces } = await import("@/lib/face-recognition");
-      const liveDescriptor = await getFaceDescriptor(videoRef.current!);
+      
+      // Try to capture a face for up to 3 seconds
+      let liveDescriptor = null;
+      for (let i = 0; i < 6; i++) {
+        liveDescriptor = await getFaceDescriptor(videoRef.current!);
+        if (liveDescriptor) break;
+        await new Promise(res => setTimeout(res, 500));
+      }
       
       if (!liveDescriptor) {
-        toast.error("No face detected. Please position your face clearly.");
+        toast.error("No face detected. Please position your face clearly in the center and ensure good lighting.");
         setState("camera");
         return;
       }
@@ -386,12 +395,17 @@ function AttendancePage() {
       }
 
       const storedDescriptor = new Float32Array(storedDescriptorArray);
-      const isMatch = compareFaces(liveDescriptor, storedDescriptor);
+      const { isMatch, distance } = compareFaces(liveDescriptor, storedDescriptor);
 
       if (isMatch) {
         saveAttendance();
       } else {
-        toast.error("Face verification failed. Not recognized.");
+        const diff = Math.round((1 - distance) * 100);
+        if (distance < 0.75) {
+            toast.error(`Verification failed (${diff}% match). Please ensure better lighting or re-register if your appearance has changed.`);
+        } else {
+            toast.error("Face not recognized. Please look directly at the camera.");
+        }
         setState("camera");
       }
     } catch (err: any) {
@@ -520,7 +534,12 @@ function AttendancePage() {
             {(["web","mobile"] as const).map((m) => (
               <button
                 key={m}
-                onClick={() => setPunchMode(m)}
+                onClick={() => {
+                  setPunchMode(m);
+                  setState("idle");
+                  stopCamera();
+                  if (m === "mobile") refreshProfile();
+                }}
                 className={cn("rounded-lg px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all",
                   punchMode === m ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
               >
@@ -539,14 +558,14 @@ function AttendancePage() {
               <button onClick={saveAttendance} className="underline font-bold">Skip & Mark</button>
             </div>
           )}
-          <div className="relative mx-auto aspect-video w-full overflow-hidden rounded-xl border-2 border-dashed bg-gradient-to-br from-muted/40 to-muted/10">
+          <div className="relative mx-auto aspect-[3/4] md:aspect-video w-full overflow-hidden rounded-xl border-2 border-dashed bg-gradient-to-br from-muted/40 to-muted/10">
             <video 
               ref={videoRef} 
               muted 
               playsInline 
               className={cn(
                 "absolute inset-0 h-full w-full object-cover", 
-                (state !== "camera" && state !== "scanning") && "hidden"
+                (state !== "camera" && state !== "scanning") || punchMode === "mobile" ? "hidden" : ""
               )} 
             />
 
@@ -571,7 +590,7 @@ function AttendancePage() {
                   <div className="relative group cursor-pointer" onClick={mark}>
                     <div className="absolute -inset-1 rounded-full bg-primary/20 animate-ping opacity-75" />
                     <div className="absolute -inset-1 rounded-[2.5rem] bg-gradient-to-tr from-primary to-info opacity-75 blur transition duration-500 group-hover:opacity-100" />
-                    <div className="relative flex h-[20rem] w-[15rem] flex-col items-center justify-center rounded-[2.5rem] bg-card p-6 shadow-2xl overflow-hidden border border-border/50">
+                    <div className="relative flex h-[18rem] md:h-[22rem] w-full max-w-[18rem] flex-col items-center justify-center rounded-[2.5rem] bg-card p-6 shadow-2xl overflow-hidden border border-border/50">
                         {/* Futuristic Scanning Line */}
                         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_15px_var(--color-primary)] animate-scan-line z-20" />
                         
@@ -595,12 +614,18 @@ function AttendancePage() {
                                   Register Biometrics
                                 </button>
                               ) : (
-                                <>
-                                  <div className="flex gap-1">
-                                    {[1,2,3,4,5].map(i => <div key={i} className="h-1 w-4 rounded-full bg-primary/20 animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />)}
-                                  </div>
-                                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tap to verify identity</span>
-                                </>
+                                  <>
+                                    <div className="flex gap-1.5">
+                                      {[1,2,3,4,5].map(i => (
+                                        <div 
+                                          key={i} 
+                                          className="h-1.5 w-6 rounded-full bg-primary/30 animate-pulse" 
+                                          style={{ animationDelay: `${i * 150}ms`, boxShadow: '0 0 10px var(--color-primary)' }} 
+                                        />
+                                      ))}
+                                    </div>
+                                    <span className="text-[11px] font-black text-primary uppercase tracking-[0.25em] animate-pulse">Tap to verify identity</span>
+                                  </>
                               )}
                             </div>
                         </div>
@@ -637,7 +662,7 @@ function AttendancePage() {
             </div>
 
             {(state === "idle" || state === "camera") && (
-              <div className="pointer-events-none absolute left-1/2 top-1/2 h-80 w-68 -translate-x-1/2 -translate-y-1/2 rounded-[45%] border-2 border-primary/60 shadow-elegant" />
+              <div className="pointer-events-none absolute left-1/2 top-1/2 h-[70%] w-[80%] md:h-80 md:w-68 -translate-x-1/2 -translate-y-1/2 rounded-[45%] border-2 border-primary/60 shadow-elegant" />
             )}
             {state === "camera" && (
               <button

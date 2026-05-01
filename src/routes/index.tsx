@@ -150,11 +150,11 @@ function Dashboard() {
         <div className="space-y-3">
           {announcements.map(a => (
             <div key={a.id} className={cn(
-              "relative overflow-hidden rounded-[1.5rem] border p-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500",
-              a.type === 'critical' ? "border-destructive/30 bg-destructive/10" :
-              a.type === 'warning' ? "border-warning/30 bg-warning/10" :
-              a.type === 'success' ? "border-success/30 bg-success/10" :
-              "border-primary/20 bg-primary/10"
+              "relative overflow-hidden rounded-[1.8rem] border p-5 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500 glass",
+              a.type === 'critical' ? "border-destructive/30 bg-destructive/5" :
+              a.type === 'warning' ? "border-warning/30 bg-warning/5" :
+              a.type === 'success' ? "border-success/30 bg-success/5" :
+              "border-primary/20 bg-primary/5"
             )}>
               <div className="flex items-start gap-4">
                 <div className={cn(
@@ -184,7 +184,7 @@ function Dashboard() {
 
       {/* Celebration Card */}
       {celebration && (
-        <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-6 text-white shadow-elegant animate-bounce-subtle">
+        <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#6366f1] via-[#a855f7] to-[#ec4899] p-8 text-white shadow-elegant animate-bounce-subtle">
           <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/20 blur-3xl" />
           <div className="absolute -left-10 -bottom-10 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
           <div className="relative flex items-center gap-6">

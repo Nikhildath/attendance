@@ -1,4 +1,5 @@
   -- Attendly Pro: Full Database Schema
+  -- Last Updated: May 2026 (PWA & Field Tracking Optimization)
   -- Use this file to set up a new Supabase project.
 
   -- 0. CLEANUP: Drop old overloaded function signatures to prevent PostgREST ambiguity errors.
@@ -44,6 +45,8 @@
       dob date,
       joining_date date,
       avatar_url text,
+      biometric_registered boolean default false,
+      biometric_credential_id text,
       created_at timestamptz default now(),
       updated_at timestamptz default now()
   );
@@ -105,13 +108,13 @@
       updated_at timestamptz default now()
   );
 
-  -- Staff Tracking
+  -- Staff Tracking (Syncs with Python Background App)
   create table public.staff_tracking (
       id uuid primary key default gen_random_uuid(),
       user_id uuid unique references public.profiles(id) on delete cascade,
       status text default 'offline' check (status in ('active', 'idle', 'offline')),
-      lat numeric default 12.9716,
-      lng numeric default 77.5946,
+      lat numeric default 0.0,
+      lng numeric default 0.0,
       battery integer default 100,
       current_task text,
       speed_kmh numeric default 0,
@@ -238,10 +241,10 @@
 
   -- RPC: Custom Login Check (Bypasses Auth if needed)
   create or replace function public.check_credentials(p_email text, p_password text)
-  returns table (id uuid, email text, name text, role text, dept text, face_registered boolean) as $$
+  returns table (id uuid, email text, name text, role text, dept text, face_registered boolean, biometric_registered boolean) as $$
   BEGIN
     RETURN QUERY
-    SELECT p.id, p.email, p.name, p.role, p.dept, p.face_registered
+    SELECT p.id, p.email, p.name, p.role, p.dept, p.face_registered, p.biometric_registered
     FROM public.profiles p
     WHERE p.email = p_email AND p.password = p_password
     LIMIT 1;
@@ -255,7 +258,7 @@
     IF EXISTS (SELECT 1 FROM public.profiles WHERE id = caller_id AND role = 'Admin') THEN
       RETURN QUERY SELECT * FROM public.profiles;
     ELSE
-      RAISE EXCEPTION 'Access Denied';
+      RETURN QUERY SELECT * FROM public.profiles WHERE id = caller_id; -- Return self instead of error
     END IF;
   END;
   $$ language plpgsql security definer set search_path = public, extensions;

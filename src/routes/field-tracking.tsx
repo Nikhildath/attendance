@@ -150,9 +150,18 @@ function FieldTrackingPage() {
       if (canceled || !mapRef.current) return;
       
       // Default to India view if no location yet
-      const map = L.map(mapRef.current, { zoomControl: true }).setView([20.5937, 78.9629], 5);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap",
+      const map = L.map(mapRef.current, { 
+        zoomControl: true,
+        attributionControl: true,
+        fadeAnimation: true,
+        markerZoomAnimation: true
+      }).setView([20.5937, 78.9629], 5);
+      
+      // Voyager theme for better visibility of roads and names
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20
       }).addTo(map);
       mapInstance.current = map;
       
@@ -195,16 +204,16 @@ function FieldTrackingPage() {
         const color = isActive ? "#16a34a" : isIdle ? "#eab308" : "#94a3b8";
 
         const html = `
-          <div class="relative flex flex-col items-center">
-            ${isActive ? '<div class="absolute -top-1 -inset-x-1 h-10 w-10 animate-ping rounded-full bg-success/30"></div>' : ''}
-            <div class="flex flex-col items-center drop-shadow-lg">
-                <div style="background:${color};width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;border:3px solid white;z-index:10;position:relative;overflow:hidden;">
+          <div class="relative flex flex-col items-center group">
+            ${isActive ? '<div class="absolute -top-1 -inset-x-1 h-10 w-10 animate-ping rounded-full bg-success/15"></div>' : ''}
+            <div class="flex flex-col items-center transition-all duration-500 group-hover:scale-110 group-hover:-translate-y-1">
+                <div style="background:${color};width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:white;border:2.5px solid white;z-index:10;position:relative;overflow:hidden;box-shadow:0 8px 16px -4px ${color}44;">
                     ${s.avatar_url ? `<img src="${s.avatar_url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';" /><span style="display:none;">${s.initials}</span>` : s.initials}
                 </div>
-                <div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:10px solid white;margin-top:-3px;z-index:5;"></div>
-                <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid ${color};margin-top:-10px;z-index:6;"></div>
+                <div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:12px solid white;margin-top:-4px;z-index:5;"></div>
+                <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:10px solid ${color};margin-top:-12px;z-index:6;"></div>
             </div>
-            ${isActive ? '<span class="absolute top-0 right-0 h-3.5 w-3.5 rounded-full bg-success border-2 border-white z-20"></span>' : ''}
+            ${isActive ? `<span class="absolute top-0 right-0 h-3.5 w-3.5 rounded-full bg-success border-2 border-white z-20 shadow-sm" style="box-shadow: 0 0 8px ${color}"></span>` : ''}
           </div>
         `;
         const icon = L.divIcon({
@@ -216,24 +225,39 @@ function FieldTrackingPage() {
 
         const existing = markersRef.current[s.id];
         const popupContent = `
-          <div class="p-2 min-w-[150px]">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="h-2 w-2 rounded-full" style="background:${color}"></span>
-              <b class="text-sm">${s.name}</b>
+          <div class="overflow-hidden">
+            <div class="px-4 py-3 border-b bg-muted/30">
+              <div class="flex items-center gap-3">
+                <div class="h-8 w-8 rounded-lg overflow-hidden border shadow-sm">
+                  ${s.avatar_url ? `<img src="${s.avatar_url}" class="h-full w-full object-cover" />` : `<div class="h-full w-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">${s.initials}</div>`}
+                </div>
+                <div>
+                  <div class="text-sm font-bold leading-none">${s.name}</div>
+                  <div class="text-[10px] text-muted-foreground mt-1">${s.role}</div>
+                </div>
+              </div>
             </div>
-            <div class="text-xs text-muted-foreground mb-2">${s.role}</div>
-            <div class="space-y-1">
-              <div class="flex items-center justify-between text-[10px] border-t pt-1">
-                <span class="uppercase tracking-wider font-bold">Status:</span>
-                <span class="font-semibold" style="color:${color}">${s.status === 'active' ? 'LIVE' : s.status === 'idle' ? 'IDLE' : 'OFFLINE'}</span>
+            <div class="p-4 space-y-3">
+              <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-1">
+                  <div class="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Status</div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="h-2 w-2 rounded-full" style="background:${color}"></span>
+                    <span class="text-[11px] font-bold" style="color:${color}">${s.status.toUpperCase()}</span>
+                  </div>
+                </div>
+                <div class="space-y-1">
+                  <div class="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Battery</div>
+                  <div class="text-[11px] font-bold">${s.battery === null ? 'N/A' : `${s.battery}%`}</div>
+                </div>
               </div>
-              <div class="flex items-center justify-between text-[10px]">
-                <span class="uppercase tracking-wider font-bold">Battery:</span>
-                <span class="font-semibold">${s.battery === null ? 'N/A' : `${s.battery}%`}</span>
+              <div class="space-y-1">
+                <div class="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Current Task</div>
+                <div class="text-[11px] font-medium leading-relaxed">${s.task}</div>
               </div>
-              <div class="flex items-center justify-between text-[10px]">
-                <span class="uppercase tracking-wider font-bold">${s.status === 'offline' ? 'Last Seen:' : 'Last Update:'}</span>
-                <span class="font-semibold">${s.lastUpdate}</span>
+              <div class="pt-2 border-t flex items-center justify-between">
+                <div class="text-[9px] text-muted-foreground uppercase tracking-wider font-semibold">Last Update</div>
+                <div class="text-[10px] font-medium">${s.lastUpdate}</div>
               </div>
             </div>
           </div>
@@ -291,11 +315,12 @@ function FieldTrackingPage() {
         const markerLat = hasOverlappingStaff ? Number(branch.lat) + 0.00018 : Number(branch.lat);
         const markerLng = hasOverlappingStaff ? Number(branch.lng) + 0.00018 : Number(branch.lng);
         const html = `
-          <div class="relative flex flex-col items-center">
-            <div style="background:#1d4ed8;width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:white;border:3px solid white;box-shadow:0 10px 24px rgba(29,78,216,0.32);font-size:12px;font-weight:800;letter-spacing:0.08em;">
-              BR
+          <div class="relative flex flex-col items-center group">
+            <div style="background:#0f172a;width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:white;border:3px solid white;box-shadow:0 10px 25px -5px rgba(15,23,42,0.3);font-size:12px;font-weight:900;letter-spacing:0.05em;transition:all 0.3s ease;" class="group-hover:scale-110 group-hover:-translate-y-1">
+              HQ
             </div>
-            <div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:10px solid #1d4ed8;margin-top:-2px;"></div>
+            <div style="width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:12px solid white;margin-top:-3px;z-index:5;"></div>
+            <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:10px solid #0f172a;margin-top:-13px;z-index:6;"></div>
           </div>
         `;
         const icon = L.divIcon({
@@ -306,10 +331,21 @@ function FieldTrackingPage() {
         });
 
         const popupContent = `
-          <div class="p-2 min-w-[150px]">
-            <div class="text-sm font-semibold">${branch.name}</div>
-            <div class="text-xs text-muted-foreground">${branch.city}, ${branch.country}</div>
-            <div class="mt-2 text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Branch Location</div>
+          <div class="overflow-hidden min-w-[180px]">
+            <div class="px-4 py-3 border-b bg-primary/5">
+              <div class="text-sm font-bold">${branch.name}</div>
+              <div class="text-[10px] text-muted-foreground mt-0.5">${branch.city || 'Headquarters'}, ${branch.country || 'India'}</div>
+            </div>
+            <div class="p-4 bg-card">
+              <div class="flex items-center gap-2">
+                <div class="h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></div>
+                <div class="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Active Branch</div>
+              </div>
+              <div class="mt-3 flex items-center justify-between text-[10px] border-t pt-2">
+                <span class="text-muted-foreground">Staff Tracked:</span>
+                <span class="font-bold">${staff.filter(s => s.branch_id === branch.id).length}</span>
+              </div>
+            </div>
           </div>
         `;
 
@@ -388,8 +424,15 @@ function FieldTrackingPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="overflow-hidden rounded-xl border bg-card shadow-card">
-          <div ref={mapRef} className="h-[560px] w-full" style={{ background: "var(--muted)" }} />
+        <div className="relative overflow-hidden rounded-2xl border bg-white shadow-card">
+          <div ref={mapRef} className="h-[620px] w-full transition-all duration-500" style={{ background: "#ebebeb" }} />
+          
+          {/* Overlay info */}
+          <div className="absolute top-6 left-6 z-[1000]">
+            <div className="glass rounded-xl border border-white/40 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-foreground/50 shadow-sm backdrop-blur-md">
+              Field Monitoring
+            </div>
+          </div>
         </div>
 
         <div className="rounded-xl border bg-card shadow-card">

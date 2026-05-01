@@ -16,6 +16,8 @@ export type Profile = {
   dob?: string | null;
   joining_date?: string | null;
   avatar_url?: string | null;
+  biometric_registered?: boolean;
+  biometric_credential_id?: string | null;
 };
 
 type AuthContextValue = {
@@ -39,7 +41,7 @@ const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
 async function fetchProfileById(userId: string) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id,email,name,role,dept,face_registered,face_descriptor,branch_id,dob,joining_date,avatar_url")
+    .select("id,email,name,role,dept,face_registered,face_descriptor,branch_id,dob,joining_date,avatar_url,biometric_registered,biometric_credential_id")
     .eq("id", userId)
     .single();
 
@@ -63,7 +65,7 @@ async function fetchProfile(user: User | null) {
         role: "Employee",
         face_registered: false,
       })
-      .select("id,email,name,role,dept,face_registered,face_descriptor,branch_id,dob,joining_date,avatar_url")
+      .select("id,email,name,role,dept,face_registered,face_descriptor,branch_id,dob,joining_date,avatar_url,biometric_registered,biometric_credential_id")
       .single();
     
     if (insertError) {
@@ -92,8 +94,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const { profile: p, timestamp } = JSON.parse(savedSession);
           // Check session expiry
           if (timestamp && Date.now() - timestamp < SESSION_EXPIRY_MS) {
+            // Fetch latest profile from DB to ensure consistency
+            const { data: latestProfile } = await fetchProfileById(p.id);
             if (mounted) {
-              setProfile(p);
+              setProfile(latestProfile || p);
               setLoading(false);
               return;
             }

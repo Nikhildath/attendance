@@ -76,6 +76,13 @@
 - **Interactive Calendar Filters**: The visual calendar now supports granular filtering by attendance status (Present, Late, Absent, etc.) and by specific employee for Administrators.
 - **Exportable Reports**: Detailed tabular data ready for audit or export, filtering by date ranges, branches, and specific employees.
 
+### 📱 Progressive Web App (PWA)
+*Installable on any device for a native experience.*
+- **Zero-Install**: Add Attendly to your home screen directly from the browser on iOS, Android, and Desktop.
+- **Offline Readiness**: Essential assets are cached for faster load times and basic offline functionality.
+- **Push-Ready Architecture**: Built-in support for service worker-based updates and notifications.
+- **Premium Branding**: Custom generated icons and mobile-optimized viewport settings.
+
 ### 🛡️ Enterprise-Grade Security & Roles (RBAC)
 - **Three-Tier Architecture**: Distinct interfaces and capabilities for **Employees**, **Managers**, and **Admins**.
 - **Dual-Mode Login**: Use standard Supabase Auth, or utilize our Custom Login engine for rapid field deployments without complex email confirmations.
@@ -96,6 +103,8 @@
 ## Recent Updates & Fixes (May 2026)
 *   **Database Overloading Fix**: Cleaned up the Supabase database to remove outdated, overloaded versions of `admin_update_profile` and `admin_insert_profile`. This resolves an issue where updating Date of Birth (DOB) and Joining Date fields on the admin panel was silently failing due to PostgREST ambiguity errors.
 *   **Robust Date Handling**: Updated the frontend to explicitly map empty strings from date inputs to SQL `null` values, preventing Postgres type-casting errors.
+*   **PWA Conversion**: Successfully converted the application into a Progressive Web App (PWA) with custom icons and service worker integration.
+*   **Premium Map Experience**: Upgraded the live field tracking map with the CartoDB Voyager theme, custom CSS filters for clarity, and interactive high-end markers.
 
 ---
 

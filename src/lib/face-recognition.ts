@@ -17,7 +17,12 @@ export const loadModels = async () => {
 };
 
 export const getFaceDescriptor = async (videoElement: HTMLVideoElement) => {
-  const options = new faceapi.TinyFaceDetectorOptions();
+  // Use TinyFaceDetector with higher input size for better accuracy on mobile
+  const options = new faceapi.TinyFaceDetectorOptions({ 
+    inputSize: 512, // Increased from 416 for better accuracy
+    scoreThreshold: 0.5 
+  });
+  
   const result = await faceapi
     .detectSingleFace(videoElement, options)
     .withFaceLandmarks()
@@ -26,7 +31,11 @@ export const getFaceDescriptor = async (videoElement: HTMLVideoElement) => {
   return result?.descriptor || null;
 };
 
-export const compareFaces = (descriptor1: Float32Array, descriptor2: Float32Array, threshold = 0.6) => {
+export const compareFaces = (descriptor1: Float32Array, descriptor2: Float32Array, threshold = 0.62) => {
   const distance = faceapi.euclideanDistance(descriptor1, descriptor2);
-  return distance < threshold;
+  console.log("Face distance:", distance, "Threshold:", threshold);
+  return {
+    isMatch: distance < threshold,
+    distance
+  };
 };

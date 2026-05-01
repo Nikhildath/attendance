@@ -391,20 +391,28 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
               )}
             </Button>
             {notificationOpen && (
-              <div className="absolute right-0 top-full z-50 mt-3 w-80 overflow-hidden rounded-[1.5rem] border border-border/50 bg-popover/95 backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+              <div className="fixed sm:absolute inset-x-4 sm:inset-auto sm:right-0 top-[72px] sm:top-full z-[100] mt-3 sm:w-80 overflow-hidden rounded-[1.8rem] border border-border/50 bg-popover/95 backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200 origin-top-right">
                 <div className="border-b border-border/50 p-4 bg-muted/30">
                   <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Notifications</div>
                 </div>
                 <div className="max-h-[360px] overflow-y-auto p-2">
                   {notifications.length === 0 ? (
-                    <div className="rounded-xl p-6 text-center text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
-                      No new alerts
+                    <div className="rounded-2xl p-8 text-center">
+                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted/50">
+                        <Bell className="h-5 w-5 text-muted-foreground/50" />
+                      </div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">No new alerts</div>
                     </div>
                   ) : notifications.map((item) => (
-                    <div key={item.id} className="mb-1 rounded-xl p-3 text-left transition-colors hover:bg-primary/5 last:mb-0">
-                      <div className="text-sm font-bold">{item.title}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">{item.body}</div>
-                      <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">{item.time}</div>
+                    <div key={item.id} className="group relative mb-1 rounded-2xl p-4 text-left transition-all hover:bg-primary/5 active:scale-[0.98]">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[13px] font-black leading-tight group-hover:text-primary transition-colors truncate">{item.title}</div>
+                          <div className="mt-1 text-[11px] font-medium text-muted-foreground/80 line-clamp-2 leading-relaxed">{item.body}</div>
+                          <div className="mt-2 text-[9px] font-black uppercase tracking-wider text-muted-foreground/40">{item.time}</div>
+                        </div>
+                        <div className="h-2 w-2 mt-1.5 rounded-full bg-primary/40 shadow-[0_0_8px_var(--color-primary)]" />
+                      </div>
                     </div>
                   ))}
                 </div>
