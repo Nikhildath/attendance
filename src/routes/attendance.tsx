@@ -194,28 +194,41 @@ function AttendancePage() {
         console.warn("Could not get precise location for record, using 0,0");
     }
 
-    let status = isHoliday ? "holiday" : "present"; 
-    
-    // Late status calculation
-    if (!isHoliday && profile?.id) {
-      const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-      const dayName = days[timestamp.getDay()];
-      
+    // --- SHIFT-BASED ATTENDANCE LOGIC ---
+    // Step 1: Fetch user's shift for today to determine work_on_holidays
+    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const dayName = days[timestamp.getDay()];
+    let userShift: any = null;
+    let shiftWorksOnHolidays = false;
+
+    if (profile?.id) {
       const { data: schedule } = await supabase
         .from('shift_schedule')
-        .select(`*, ${dayName}(start_time, type)`)
+        .select(`*, ${dayName}(start_time, end_time, type, work_on_holidays)`)
         .eq('user_id', profile.id)
         .maybeSingle();
 
-      const shift = (schedule as any)?.[dayName];
-      if (shift && shift.start_time && shift.type !== 'open') {
-        const [sHour, sMin] = shift.start_time.split(':').map(Number);
+      userShift = (schedule as any)?.[dayName] ?? null;
+      shiftWorksOnHolidays = userShift?.work_on_holidays === true;
+    }
+
+    // Step 2: Determine status — shift has PRIORITY over holidays
+    // If shift requires working on holidays, treat today as a normal workday
+    let status: string;
+    if (isHoliday && !shiftWorksOnHolidays) {
+      // True holiday off-day: employee is not expected to work
+      status = "holiday";
+    } else {
+      // Normal workday (either no holiday, or shift requires working on holidays)
+      status = "present";
+
+      // Check for late arrival
+      if (userShift && userShift.start_time && userShift.type !== 'open') {
+        const [sHour, sMin] = userShift.start_time.split(':').map(Number);
         const shiftStart = new Date(timestamp);
         shiftStart.setHours(sHour, sMin, 0, 0);
-        
         const threshold = settings?.late_threshold_mins || 15;
         const lateTime = new Date(shiftStart.getTime() + threshold * 60000);
-        
         if (timestamp > lateTime) {
           status = "late";
         }
@@ -668,7 +681,10 @@ function AttendancePage() {
               <PartyPopper className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="flex-1">
                 <div className="font-semibold">Today is a Holiday: {isHoliday.name}</div>
-                <div className="opacity-80">Marking attendance today will be recorded as "Holiday" status.</div>
+                <div className="opacity-80 mt-0.5">
+                  If your shift requires working today, attendance will be marked as <strong>present/late</strong> based on your shift.
+                  Otherwise it will be recorded as <strong>Holiday</strong>.
+                </div>
               </div>
             </div>
           )}
