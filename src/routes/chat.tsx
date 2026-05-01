@@ -117,20 +117,33 @@ function ChatPage() {
           const username = rawName.split('@')[0];
           const finalAvatarUrl = mainProfile?.avatar_url || `https://ui-avatars.com/api/?name=${username}&background=random`;
 
-          // Always upsert profile on load to ensure it exists and is synced
-          const { error: profileError } = await chatSupabase.from('profiles').upsert({
+          // Always upsert profile on load to ensure it exists and is synced.
+          // Use onConflict: 'id' so that username uniqueness (if constraint still exists) won't block us.
+          const profilePayload = {
             id: activeUser.id,
             username: username,
             avatar_url: finalAvatarUrl,
-            full_name: mainProfile?.role || 'Employee', // Store role in full_name for now
-          });
+            full_name: mainProfile?.role || 'Employee',
+          };
+
+          let { error: profileError } = await chatSupabase
+            .from('profiles')
+            .upsert(profilePayload, { onConflict: 'id' });
           
+          // Handle stale username conflict: an old anonymous session left a profile with the same username.
+          // Delete the orphaned row and retry.
+          if (profileError?.code === '23505') {
+            console.warn("Username conflict detected — cleaning up orphaned profile...");
+            await chatSupabase.from('profiles').delete().eq('username', username).neq('id', activeUser.id);
+            const retry = await chatSupabase.from('profiles').upsert(profilePayload, { onConflict: 'id' });
+            profileError = retry.error;
+          }
+
           if (profileError) {
             console.error("Profile sync error:", profileError);
-            alert("Failed to sync profile: " + profileError.message);
-          } else {
-            fetchProfile(activeUser.id);
           }
+          // Always try to fetch — the profile may already exist from a previous session
+          fetchProfile(activeUser.id);
         } else if (!session) {
           console.warn("No main application user found. Automatic chat login skipped.");
           setAuthErrorMsg("Main application session not found. Please log in to the main website first.");
@@ -371,13 +384,13 @@ function ChatPage() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] font-outfit overflow-hidden gap-4 relative animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="flex h-[calc(100dvh-6rem)] lg:h-[calc(100dvh-12rem)] font-outfit overflow-hidden gap-0 lg:gap-4 relative animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {/* Premium Gradient Background Elements */}
       <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-primary/10 dark:bg-primary/20 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
       <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-blue-500/10 dark:bg-indigo-500/20 rounded-full blur-[100px] translate-x-1/3 translate-y-1/3 pointer-events-none" />
 
-      {/* Sidebar Channels */}
-      <aside className="hidden w-80 flex-col gap-4 relative z-10 lg:flex">
+      {/* Sidebar Channels — Desktop: always visible, Mobile: shown when no room selected */}
+      <aside className={`${activeRoom ? 'hidden lg:flex' : 'flex'} w-full lg:w-80 flex-col gap-3 lg:gap-4 relative z-10 p-2 lg:p-0`}>
         {/* User Profile Summary */}
         <div className="flex items-center gap-4 rounded-3xl border border-zinc-200/50 dark:border-white/5 bg-white/40 dark:bg-zinc-950/50 p-6 backdrop-blur-xl shadow-sm">
           <div className="relative">
@@ -407,12 +420,12 @@ function ChatPage() {
               <Plus size={14} />
             </button>
           </div>
-          <div className="flex flex-col gap-1 overflow-y-auto max-h-[40vh] scrollbar-none -mx-2 px-2">
+          <div className="flex flex-col gap-1 overflow-y-auto max-h-[50vh] lg:max-h-[40vh] scrollbar-none -mx-2 px-2">
             {rooms.filter(r => r.name.includes(searchQuery.toLowerCase())).map(room => (
               <button 
                 key={room.id} 
                 onClick={() => setActiveRoom(room)}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-all ${activeRoom?.id === room.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5 hover:text-zinc-900 dark:hover:text-white'}`}
+                className={`flex items-center gap-3 rounded-xl px-3 py-3.5 lg:py-2.5 text-sm font-bold transition-all active:scale-[0.98] ${activeRoom?.id === room.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5 hover:text-zinc-900 dark:hover:text-white'}`}
               >
                 <Hash size={16} />
                 <span>{room.name}</span>
@@ -431,18 +444,22 @@ function ChatPage() {
         </div>
       </aside>
 
-      {/* Main Chat */}
-      <div className="flex flex-1 flex-col overflow-hidden rounded-3xl border border-zinc-200/50 dark:border-white/5 bg-white/40 dark:bg-zinc-950/50 backdrop-blur-xl shadow-sm relative z-10">
+      {/* Main Chat — Desktop: always visible, Mobile: only when room selected */}
+      <div className={`${activeRoom ? 'flex' : 'hidden lg:flex'} flex-1 flex-col overflow-hidden rounded-2xl lg:rounded-3xl border border-zinc-200/50 dark:border-white/5 bg-white/40 dark:bg-zinc-950/50 backdrop-blur-xl shadow-sm relative z-10`}>
         {activeRoom ? (
           <>
-            <header className="flex items-center justify-between border-b border-zinc-200/50 dark:border-white/5 p-6 bg-white/20 dark:bg-white/5 backdrop-blur-md relative z-50">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 dark:bg-primary/20 text-primary">
-                  <Hash size={24} />
+            <header className="flex items-center justify-between border-b border-zinc-200/50 dark:border-white/5 px-3 py-3 lg:p-6 bg-white/20 dark:bg-white/5 backdrop-blur-md relative z-50">
+              <div className="flex items-center gap-3 lg:gap-4">
+                {/* Mobile back button */}
+                <button onClick={() => setActiveRoom(null)} className="flex lg:hidden h-10 w-10 items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors text-zinc-600 dark:text-zinc-400 shrink-0">
+                  <ChevronLeft size={22} />
+                </button>
+                <div className="flex h-10 w-10 lg:h-12 lg:w-12 items-center justify-center rounded-xl lg:rounded-2xl bg-primary/10 dark:bg-primary/20 text-primary shrink-0">
+                  <Hash size={20} />
                 </div>
-                <div>
-                  <h2 className="text-lg font-black text-zinc-900 dark:text-white">{activeRoom.name}</h2>
-                  <p className="text-xs text-zinc-500">{activeRoom.description}</p>
+                <div className="min-w-0">
+                  <h2 className="text-base lg:text-lg font-black text-zinc-900 dark:text-white truncate">{activeRoom.name}</h2>
+                  <p className="text-[10px] lg:text-xs text-zinc-500 truncate">{activeRoom.description}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -477,16 +494,17 @@ function ChatPage() {
               </div>
             </header>
 
-            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 scrollbar-none space-y-6">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-3 lg:p-6 scrollbar-none space-y-4 lg:space-y-6">
               {messages.filter(m => m.content.toLowerCase().includes(searchQuery.toLowerCase())).map((msg, i, arr) => {
                 const isOwn = msg.user_id === user.id;
                 const showAvatar = i === 0 || arr[i-1].user_id !== msg.user_id;
                 const canDelete = isOwn || profile?.is_admin || mainProfile?.role === 'Admin';
                 
                 return (
-                  <div key={msg.id} className={`flex gap-4 group ${isOwn ? 'flex-row-reverse' : ''}`}>
+                  <div key={msg.id} className={`flex gap-2 lg:gap-4 group ${isOwn ? 'flex-row-reverse' : ''}`}>
                     {showAvatar ? (
-                      <div className="h-10 w-10 shrink-0 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center font-black text-xs overflow-hidden border border-zinc-300 dark:border-white/10 shadow-sm">
+                      /* Avatar - smaller on mobile */
+                      <div className="h-8 w-8 lg:h-10 lg:w-10 shrink-0 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center font-black text-xs overflow-hidden border border-zinc-300 dark:border-white/10 shadow-sm">
                         {msg.profiles?.avatar_url ? (
                           <img src={msg.profiles.avatar_url} alt="Avatar" className="h-full w-full object-cover" />
                         ) : (
@@ -494,9 +512,9 @@ function ChatPage() {
                         )}
                       </div>
                     ) : (
-                      <div className="w-10 shrink-0" />
+                      <div className="w-8 lg:w-10 shrink-0" />
                     )}
-                    <div className={`flex max-w-[70%] flex-col gap-1 ${isOwn ? 'items-end' : 'items-start'}`}>
+                    <div className={`flex max-w-[85%] lg:max-w-[70%] flex-col gap-1 ${isOwn ? 'items-end' : 'items-start'}`}>
                       {showAvatar && (
                         <div className={`flex items-center gap-2 px-1 mb-1 text-[10px] font-black uppercase tracking-wider ${isOwn ? 'flex-row-reverse' : ''}`}>
                           <span className="text-primary">{msg.profiles?.username || 'User'}</span>
@@ -521,7 +539,7 @@ function ChatPage() {
                            {msg.type === 'text' && <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>}
                            {msg.type === 'image' && (
                              <div className="relative group/media inline-block">
-                               <img src={msg.file_url} className="rounded-xl max-w-sm w-full shadow-sm" />
+                               <img src={msg.file_url} className="rounded-xl max-w-[240px] lg:max-w-sm w-full shadow-sm" />
                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/media:opacity-100 transition-opacity flex items-center justify-center rounded-xl backdrop-blur-sm pointer-events-none">
                                   <button onClick={(e) => { e.stopPropagation(); const a = document.createElement('a'); a.href = msg.file_url!; a.download = msg.content || 'image'; a.target='_blank'; a.click(); }} className="p-3 bg-white/20 hover:bg-white/40 text-white rounded-full pointer-events-auto transition-colors shadow-xl backdrop-blur-md">
                                     <Download size={24} />
@@ -531,7 +549,7 @@ function ChatPage() {
                            )}
                            {msg.type === 'video' && (
                              <div className="relative group/media inline-block">
-                               <video controls src={msg.file_url} className="rounded-xl max-w-sm w-full shadow-sm" />
+                               <video controls src={msg.file_url} className="rounded-xl max-w-[240px] lg:max-w-sm w-full shadow-sm" />
                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/media:opacity-100 transition-opacity flex items-start justify-end p-2 rounded-xl pointer-events-none">
                                   <button onClick={(e) => { e.stopPropagation(); const a = document.createElement('a'); a.href = msg.file_url!; a.download = msg.content || 'video'; a.target='_blank'; a.click(); }} className="p-2 bg-black/50 hover:bg-black/80 text-white rounded-lg pointer-events-auto transition-colors shadow-xl backdrop-blur-md">
                                     <Download size={16} />
@@ -563,8 +581,8 @@ function ChatPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            <footer className="border-t border-zinc-200/50 dark:border-white/5 p-6 bg-white/20 dark:bg-white/5 backdrop-blur-md">
-              <div className="flex items-center gap-4 bg-white dark:bg-white/5 rounded-2xl p-2 border border-zinc-200 dark:border-white/5 focus-within:border-primary/50 transition-colors shadow-sm">
+            <footer className="border-t border-zinc-200/50 dark:border-white/5 p-2 lg:p-6 bg-white/20 dark:bg-white/5 backdrop-blur-md" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0.5rem))' }}>
+              <div className="flex items-center gap-2 lg:gap-4 bg-white dark:bg-white/5 rounded-2xl p-1.5 lg:p-2 border border-zinc-200 dark:border-white/5 focus-within:border-primary/50 transition-colors shadow-sm">
                 <div className="flex items-center gap-1">
                   <label className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-white/10 transition-colors cursor-pointer text-zinc-500 dark:text-zinc-400 relative">
                     <ImageIcon size={20} />
@@ -577,7 +595,7 @@ function ChatPage() {
                     {isRecording ? <Square size={20} className="relative z-10" /> : <Mic size={20} />}
                   </button>
                 </div>
-                <form onSubmit={(e) => { e.preventDefault(); if(input.trim()) sendMessage(input); }} className="flex flex-1 items-center gap-4">
+                <form onSubmit={(e) => { e.preventDefault(); if(input.trim()) sendMessage(input); }} className="flex flex-1 items-center gap-2 lg:gap-4">
                   {isRecording ? (
                     <div className="flex-1 px-4 py-2 text-rose-500 font-bold text-sm animate-pulse flex items-center gap-2">
                        <Mic size={14} /> Recording Audio... Click square to stop and send.
@@ -599,7 +617,7 @@ function ChatPage() {
             </footer>
           </>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-6 p-12 text-center relative z-10">
+          <div className="flex h-full flex-col items-center justify-center gap-6 p-6 lg:p-12 text-center relative z-10">
              <div className="flex h-24 w-24 items-center justify-center rounded-[2.5rem] bg-primary/10 text-primary border border-primary/20 shadow-xl shadow-primary/5">
                <MessageSquare size={48} />
              </div>
@@ -624,27 +642,28 @@ function ChatPage() {
 
       {/* Admin Modal */}
       {isAdminPanelOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="w-full max-w-lg rounded-3xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-950 p-8 shadow-2xl">
-            <div className="flex items-center justify-between mb-8">
+        <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setIsAdminPanelOpen(false)}>
+          <div onClick={e => e.stopPropagation()} className="w-full lg:max-w-lg rounded-t-3xl lg:rounded-3xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-950 p-5 lg:p-8 shadow-2xl max-h-[85dvh] overflow-y-auto animate-in slide-in-from-bottom-8 lg:slide-in-from-bottom-0 lg:zoom-in-95 duration-300" style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
+            <div className="w-12 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700 mx-auto mb-4 lg:hidden" />
+            <div className="flex items-center justify-between mb-6 lg:mb-8">
               <div className="flex items-center gap-3">
                 <Shield className="text-rose-500" />
-                <h2 className="text-xl font-black text-zinc-900 dark:text-white">Workspace Controls</h2>
+                <h2 className="text-lg lg:text-xl font-black text-zinc-900 dark:text-white">Workspace Controls</h2>
               </div>
-              <button onClick={() => setIsAdminPanelOpen(false)} className="h-10 w-10 flex items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-white/5 text-zinc-500"><X /></button>
+              <button onClick={() => setIsAdminPanelOpen(false)} className="h-10 w-10 flex items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-white/5 text-zinc-500 active:scale-95 transition-transform"><X /></button>
             </div>
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-white/5 p-6">
+            <div className="space-y-3 lg:space-y-4">
+              <div className="rounded-2xl border border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-white/5 p-4 lg:p-6">
                 <h3 className="font-bold mb-1 text-zinc-900 dark:text-white">Backup History</h3>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">Export all messages from current room to a JSON file.</p>
-                <button onClick={exportRoomJSON} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white shadow-lg shadow-primary/20"><FileJson size={16} /> Export JSON</button>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3 lg:mb-4">Export all messages from current room to a JSON file.</p>
+                <button onClick={exportRoomJSON} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-3 lg:py-2 text-sm font-bold text-white shadow-lg shadow-primary/20 active:scale-95 transition-transform w-full lg:w-auto justify-center lg:justify-start"><FileJson size={16} /> Export JSON</button>
               </div>
-              <div className="rounded-2xl border border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-white/5 p-6">
+              <div className="rounded-2xl border border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-white/5 p-4 lg:p-6">
                 <h3 className="font-bold mb-1 text-zinc-900 dark:text-white">Media Archive</h3>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">Download all images, videos, and audio files shared here.</p>
-                <button onClick={downloadAllMedia} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white shadow-lg shadow-primary/20"><Download size={16} /> Download Media</button>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3 lg:mb-4">Download all images, videos, and audio files shared here.</p>
+                <button onClick={downloadAllMedia} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-3 lg:py-2 text-sm font-bold text-white shadow-lg shadow-primary/20 active:scale-95 transition-transform w-full lg:w-auto justify-center lg:justify-start"><Download size={16} /> Download Media</button>
               </div>
-              <div className="rounded-2xl border border-rose-200 dark:border-rose-500/20 bg-rose-50 dark:bg-rose-500/5 p-6">
+              <div className="rounded-2xl border border-rose-200 dark:border-rose-500/20 bg-rose-50 dark:bg-rose-500/5 p-4 lg:p-6">
                  <p className="text-[10px] font-black uppercase tracking-widest text-rose-500">Security Notice</p>
                  <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-2">Retention policy is active: 30 days. No data can be recovered after the purge cycle.</p>
               </div>
@@ -655,11 +674,12 @@ function ChatPage() {
 
       {/* Create Room Modal */}
       {isCreateRoomOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="w-full max-w-md rounded-3xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-950 p-8 shadow-2xl">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-xl font-black text-zinc-900 dark:text-white">Create Channel</h2>
-              <button onClick={() => setIsCreateRoomOpen(false)} className="h-10 w-10 flex items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-white/5 text-zinc-500"><X /></button>
+        <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setIsCreateRoomOpen(false)}>
+          <div onClick={e => e.stopPropagation()} className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-950 p-5 lg:p-8 shadow-2xl animate-in slide-in-from-bottom-8 lg:slide-in-from-bottom-0 lg:zoom-in-95 duration-300" style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
+            <div className="w-12 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700 mx-auto mb-4 lg:hidden" />
+            <div className="flex items-center justify-between mb-6 lg:mb-8">
+              <h2 className="text-lg lg:text-xl font-black text-zinc-900 dark:text-white">Create Channel</h2>
+              <button onClick={() => setIsCreateRoomOpen(false)} className="h-10 w-10 flex items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-white/5 text-zinc-500 active:scale-95 transition-transform"><X /></button>
             </div>
             <form onSubmit={createRoom} className="space-y-4">
               <div>
@@ -669,7 +689,7 @@ function ChatPage() {
                   required
                   value={newRoomName}
                   onChange={e => setNewRoomName(e.target.value)}
-                  className="w-full bg-zinc-50 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors shadow-sm"
+                  className="w-full bg-zinc-50 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3.5 text-base lg:text-sm text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors shadow-sm"
                   placeholder="e.g. general, announcements"
                 />
               </div>
@@ -679,11 +699,11 @@ function ChatPage() {
                   type="text" 
                   value={newRoomDesc}
                   onChange={e => setNewRoomDesc(e.target.value)}
-                  className="w-full bg-zinc-50 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors shadow-sm"
+                  className="w-full bg-zinc-50 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3.5 text-base lg:text-sm text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors shadow-sm"
                   placeholder="What is this channel about?"
                 />
               </div>
-              <button type="submit" disabled={!newRoomName.trim()} className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white shadow-lg shadow-primary/20 disabled:opacity-50 mt-4 transition-transform active:scale-95">
+              <button type="submit" disabled={!newRoomName.trim()} className="w-full rounded-xl bg-primary px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-primary/20 disabled:opacity-50 mt-4 transition-transform active:scale-95">
                 Create Channel
               </button>
             </form>
