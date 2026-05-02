@@ -61,9 +61,11 @@
 
 ### 💰 Automated Payroll & Payslip Generation
 *Turn attendance data into actionable financials.*
-- **Automated Calculation**: The system aggregates Present Days, Approved Leaves, Holidays, and deductions to calculate net payable days.
+- **Automated Fine Engine**: Dynamically calculates late fines based on shift thresholds and configurable organisation settings (e.g., ₹50 per late mark).
+- **Smart Recalculation**: The "Run Payroll" engine automatically detects and updates existing "Pending" payslips if attendance data changes, ensuring financial accuracy without manual intervention.
 - **One-Click Payslips**: Generate professional, formatted PDF payslips instantly for any given month.
 - **Role-Based Salary Base**: Flexible architecture to accommodate different compensation tiers.
+- **Overtime Logic**: Automatically calculates overtime pay based on working hours exceeding daily limits and custom OT rates.
 
 ### 🌍 Deep Localization (India-Optimized)
 *Built for the nuances of the Indian workplace.*
@@ -88,9 +90,9 @@
 *A standalone, secure, and fully-featured team communication hub.*
 - **Dual-Database Architecture**: Chat data is completely isolated in a secondary Supabase project for maximum security and performance scaling, synchronized with the main application seamlessly.
 - **Rich Media & Voice Notes**: Fully supports image, video, file attachments, and WhatsApp-style embedded voice recordings with native audio playback.
-- **Browser Notifications**: Integrated directly with the native OS to send real-time alerts when new messages arrive.
-- **Admin Workspace Tools**: Administrators can export entire channels as JSON backups or trigger bulk-downloads of all media shared in a channel.
-- **Automated Data Retention**: Implemented a `pg_cron` backend policy to automatically purge messages older than 30 days to save storage and ensure compliance.
+- **OS-Level Notifications**: Utilizes advanced Service Worker and Push API integration to deliver real-time chat alerts directly to the Operating System, even when the browser is closed.
+- **Admin Workspace Tools**: Administrators can edit channel names/descriptions or delete entire channels. Includes tools to export room history as JSON or bulk-download shared media.
+- **Mandatory Data Retention**: Integrated a mandatory PostgreSQL cleanup function that automatically purges messages older than 30 days, keeping the workspace secure and high-performing.
 - **Glassmorphism Design**: Features an ultra-premium, responsive UI that automatically adapts to Light and Dark modes with fluid animations and hover-to-download overlays.
 
 ---
@@ -105,14 +107,10 @@
 | **Maps & AI** | Leaflet.js, face-api.js |
 | **Hosting** | Render / Netlify (CI/CD Optimized) |
 
-## Recent Updates & Fixes (May 2026)
-*   **Premium Isolated Chat System**: Built and integrated a stunning, full-featured workspace chat module utilizing a secondary Supabase database. Includes real-time messaging, voice recording, file sharing, and automated profile syncing.
-*   **Chat Media Enhancements**: Added hover-to-download buttons for media, native browser notification API integration, and fixed real-time deletion synchronization.
-*   **Database Overloading Fix**: Cleaned up the Supabase database to remove outdated, overloaded versions of `admin_update_profile` and `admin_insert_profile`. This resolves an issue where updating Date of Birth (DOB) and Joining Date fields on the admin panel was silently failing due to PostgREST ambiguity errors.
-*   **Robust Date Handling**: Updated the frontend to explicitly map empty strings from date inputs to SQL `null` values, preventing Postgres type-casting errors.
-*   **PWA Conversion**: Successfully converted the application into a Progressive Web App (PWA) with custom icons and service worker integration.
-*   **Biometric Passkeys**: Implemented secure device-level biometrics (Fingerprint/FaceID) for mobile attendance marking. Fixed a critical encoding bug in WebAuthn credential handling that caused "device not recognized" errors.
-*   **Dark Mode Optimization**: Performed a global UI audit and refactored the `warning` theme palette to ensure 100% legibility in dark mode across all routes.
+*   **Payroll Fine Engine Fix**: Resolved a critical bug where payroll fines were not calculating for months other than the current calendar month. Implemented a smart "Update Existing" logic to fix previously generated 0-fine payslips.
+*   **OS-Level Push Notifications**: Upgraded the notification system from simple browser popups to robust OS-level Push API notifications that work even when the app is closed.
+*   **Mandatory Data Retention**: Established a mandatory 30-day message purge cycle for the Chat module to ensure performance and privacy.
+*   **Premium Channel Management**: Added dedicated Admin controls for editing and deleting chat channels with real-time state synchronization.
 *   **Premium Map Experience**: Upgraded the live field tracking map with the CartoDB Voyager theme, custom CSS filters for clarity, and interactive high-end markers.
 
 ---

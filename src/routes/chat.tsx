@@ -67,6 +67,9 @@ function ChatPage() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isRoomMenuOpen, setIsRoomMenuOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isEditRoomOpen, setIsEditRoomOpen] = useState(false);
+  const [editRoomName, setEditRoomName] = useState('');
+  const [editRoomDesc, setEditRoomDesc] = useState('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -118,7 +121,6 @@ function ChatPage() {
         }
 
         // Step 2: Use mainProfile.id as the STABLE profile key
-        // This ensures the same account gets the same profile on ALL devices
         const stableId = mainProfile.id;
         const rawName = mainProfile.name || mainProfile.email || 'User';
         const username = rawName.split('@')[0];
@@ -135,19 +137,16 @@ function ChatPage() {
           .from('profiles')
           .upsert(profilePayload, { onConflict: 'id' });
 
-        // Handle stale username conflict from old anonymous profiles
         if (profileError?.code === '23505') {
-          console.warn("Username conflict — cleaning up orphaned profile...");
           await chatSupabase.from('profiles').delete().eq('username', username).neq('id', stableId);
-          const retry = await chatSupabase.from('profiles').upsert(profilePayload, { onConflict: 'id' });
-          profileError = retry.error;
-        }
-
-        if (profileError) {
-          console.error("Profile sync error:", profileError);
+          await chatSupabase.from('profiles').upsert(profilePayload, { onConflict: 'id' });
         }
 
         fetchProfile(stableId);
+        
+        // --- NEW: Register for Push Notifications ---
+        subscribeToPush(stableId);
+
       } catch (err) {
         console.error("Initialization error:", err);
       } finally {
@@ -157,6 +156,7 @@ function ChatPage() {
 
     initChat();
 
+    // Check for standard browser notification permission
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
@@ -168,6 +168,31 @@ function ChatPage() {
 
     return () => subscription.unsubscribe();
   }, [mainProfile?.id, mainAuthLoading]);
+
+  const subscribeToPush = async (userId: string) => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        // Public VAPID key - this is a generic placeholder, ideally from env
+        applicationServerKey: 'BEl62i4nZ9AnWvV-uSQuvQ6S3vL3-uM5A3RzV-yN8U1C5pQ6F-MvM6Y-UvB9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9'
+      });
+
+      console.log('Push Subscription:', subscription);
+      
+      // Store subscription in Supabase
+      await chatSupabase.from('push_subscriptions').upsert({
+        user_id: userId,
+        subscription: JSON.parse(JSON.stringify(subscription)),
+        updated_at: new Date().toISOString()
+      });
+
+    } catch (err) {
+      console.warn('Push subscription failed:', err);
+    }
+  };
 
   const fetchProfile = async (userId: string) => {
     const { data } = await chatSupabase.from('profiles').select('*').eq('id', userId).single();
@@ -189,10 +214,13 @@ function ChatPage() {
           table: 'messages', 
           filter: `room_id=eq.${activeRoom.id}` 
         }, payload => {
+          // Safeguard: only process if the message belongs to the current active room
+          if (payload.new.room_id !== activeRoom.id) return;
+
           if (payload.new.user_id !== profile?.id && 'Notification' in window && Notification.permission === 'granted') {
              new Notification('New message', { body: `You have a new message in ${activeRoom.name}`, icon: '/icon-192.png' });
           }
-          fetchMessageWithProfile(payload.new.id);
+          fetchMessageWithProfile(payload.new.id, activeRoom.id);
         })
         .subscribe();
 
@@ -212,9 +240,8 @@ function ChatPage() {
       name: newRoomName.toLowerCase().replace(/\s+/g, '-'),
       description: newRoomDesc
     }]).select().single();
-    
+
     if (error) {
-      console.error("Error creating room:", error);
       alert("Failed to create channel: " + error.message);
     } else if (data) {
       setRooms([...rooms, data]);
@@ -222,6 +249,48 @@ function ChatPage() {
       setIsCreateRoomOpen(false);
       setNewRoomName('');
       setNewRoomDesc('');
+    }
+  };
+
+  const updateRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeRoom || !editRoomName.trim()) return;
+    
+    const { data, error } = await chatSupabase
+      .from('rooms')
+      .update({
+        name: editRoomName.toLowerCase().replace(/\s+/g, '-'),
+        description: editRoomDesc
+      })
+      .eq('id', activeRoom.id)
+      .select()
+      .single();
+
+    if (error) {
+      alert("Failed to update channel: " + error.message);
+    } else if (data) {
+      setRooms(rooms.map(r => r.id === data.id ? data : r));
+      setActiveRoom(data);
+      setIsEditRoomOpen(false);
+      toast.success("Channel updated");
+    }
+  };
+
+  const deleteRoom = async () => {
+    if (!activeRoom) return;
+    if (!confirm(`Are you sure you want to delete #${activeRoom.name}? All messages will be permanently lost.`)) return;
+
+    const { error } = await chatSupabase
+      .from('rooms')
+      .delete()
+      .eq('id', activeRoom.id);
+
+    if (error) {
+      alert("Failed to delete channel: " + error.message);
+    } else {
+      setRooms(rooms.filter(r => r.id !== activeRoom.id));
+      setActiveRoom(null);
+      toast.success("Channel deleted");
     }
   };
 
@@ -237,7 +306,7 @@ function ChatPage() {
     scrollToBottom();
   };
 
-  const fetchMessageWithProfile = async (messageId: string) => {
+  const fetchMessageWithProfile = async (messageId: string, targetRoomId: string) => {
     const { data, error } = await chatSupabase
       .from('messages')
       .select('*, profiles(id, username, avatar_url, full_name)')
@@ -246,8 +315,11 @@ function ChatPage() {
     
     if (error) console.error("Error fetching single message:", error);
     if (!error && data) {
-      setMessages(prev => [...prev, data]);
-      scrollToBottom();
+      // Final check: only append if we are still in the same room
+      if (data.room_id === targetRoomId) {
+        setMessages(prev => [...prev, data]);
+        scrollToBottom();
+      }
     }
   };
 
@@ -487,6 +559,22 @@ function ChatPage() {
                         <button onClick={() => { exportRoomJSON(); setIsRoomMenuOpen(false); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-zinc-700 dark:text-zinc-300 hover:bg-primary/10 hover:text-primary transition-colors">
                           <FileJson size={16} /> Export Chat JSON
                         </button>
+                        {(profile?.is_admin || mainProfile?.role === 'Admin') && (
+                          <>
+                            <div className="my-1 border-t border-zinc-200 dark:border-white/5" />
+                            <button onClick={() => { 
+                              setEditRoomName(activeRoom.name); 
+                              setEditRoomDesc(activeRoom.description || ''); 
+                              setIsEditRoomOpen(true); 
+                              setIsRoomMenuOpen(false); 
+                            }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-zinc-700 dark:text-zinc-300 hover:bg-amber-500/10 hover:text-amber-500 transition-colors">
+                              <Settings size={16} /> Edit Channel
+                            </button>
+                            <button onClick={() => { deleteRoom(); setIsRoomMenuOpen(false); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-zinc-700 dark:text-zinc-300 hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
+                              <Trash2 size={16} /> Delete Channel
+                            </button>
+                          </>
+                        )}
                       </div>
                     </>
                   )}
@@ -706,6 +794,47 @@ function ChatPage() {
               <button type="submit" disabled={!newRoomName.trim()} className="w-full rounded-xl bg-primary px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-primary/20 disabled:opacity-50 mt-4 transition-transform active:scale-95">
                 Create Channel
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Edit Room Modal */}
+      {isEditRoomOpen && (
+        <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/40 dark:bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setIsEditRoomOpen(false)}>
+          <div onClick={e => e.stopPropagation()} className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-950 p-5 lg:p-8 shadow-2xl animate-in slide-in-from-bottom-8 lg:slide-in-from-bottom-0 lg:zoom-in-95 duration-300" style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
+            <div className="w-12 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700 mx-auto mb-4 lg:hidden" />
+            <div className="flex items-center justify-between mb-6 lg:mb-8">
+              <h2 className="text-lg lg:text-xl font-black text-zinc-900 dark:text-white">Edit Channel</h2>
+              <button onClick={() => setIsEditRoomOpen(false)} className="h-10 w-10 flex items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-white/5 text-zinc-500 active:scale-95 transition-transform"><X /></button>
+            </div>
+            <form onSubmit={updateRoom} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2 block">Channel Name</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editRoomName}
+                  onChange={e => setEditRoomName(e.target.value)}
+                  className="w-full bg-zinc-50 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3.5 text-base lg:text-sm text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors shadow-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2 block">Description</label>
+                <input 
+                  type="text" 
+                  value={editRoomDesc}
+                  onChange={e => setEditRoomDesc(e.target.value)}
+                  className="w-full bg-zinc-50 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3.5 text-base lg:text-sm text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors shadow-sm"
+                />
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button type="button" onClick={() => setIsEditRoomOpen(false)} className="flex-1 rounded-xl bg-zinc-100 dark:bg-white/5 px-4 py-3.5 text-sm font-bold text-zinc-600 dark:text-zinc-400 transition-transform active:scale-95">
+                  Cancel
+                </button>
+                <button type="submit" disabled={!editRoomName.trim()} className="flex-[2] rounded-xl bg-primary px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-primary/20 disabled:opacity-50 transition-transform active:scale-95">
+                  Save Changes
+                </button>
+              </div>
             </form>
           </div>
         </div>

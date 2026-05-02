@@ -89,7 +89,7 @@ function PayrollPage() {
     if (!isAdmin) return toast.error("Only admins can run payroll.");
     
     setLoading(true);
-    toast.info("Identifying employees and generating payslips...");
+    toast.info("Analyzing attendance and processing payroll...");
 
     // 1. Get all employees
     const { data: employees, error: empError } = await supabase.from("profiles").select("id, name");
@@ -98,66 +98,101 @@ function PayrollPage() {
         return toast.error("Failed to fetch employees");
     }
 
-    // 2. Prepare payslips with automated Fine Calculation
-    const { data: existing } = await supabase.from("payslips").select("user_id").eq("month", month);
-    const existingIds = new Set(existing?.map(e => e.user_id) || []);
+    // 2. Fetch existing payslips for this month to avoid duplicates and allow updates
+    const { data: existingPayslips } = await supabase.from("payslips").select("*").eq("month", month);
+    const existingMap = new Map(existingPayslips?.map(p => [p.user_id, p]) || []);
     
-    // Fetch all late marks for this month to calculate fines
-    const start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-    const end = new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString();
+    // 3. Fetch all attendance for the selected month to calculate fines & OT
+    const [year, monthIdx] = (() => {
+      const d = new Date(month);
+      return [d.getFullYear(), d.getMonth()];
+    })();
+    const start = new Date(year, monthIdx, 1).toISOString();
+    const end = new Date(year, monthIdx + 1, 1).toISOString();
+
     const { data: allAttendance } = await supabase.from("attendance").select("user_id, status, check_in, check_out").gte("check_in", start).lt("check_in", end);
 
-    const newPayslips = employees
-        .filter(emp => !existingIds.has(emp.id))
-        .map(emp => {
-            const userAtt = allAttendance?.filter(a => a.user_id === emp.id) || [];
-            const lateCount = userAtt.filter(a => a.status === 'late').length;
-            const totalFine = lateCount * lateFine;
-            
-            // Overtime calculation
-            const workHoursLimit = settings?.working_hours_per_day || 9;
-            const otRate = (settings as any)?.overtime_rate || 200;
-            let totalOtPay = 0;
-            
-            userAtt.forEach(a => {
-                if (a.check_in && a.check_out) {
-                    const hours = (new Date(a.check_out).getTime() - new Date(a.check_in).getTime()) / (3600 * 1000);
-                    if (hours > workHoursLimit) {
-                        totalOtPay += (hours - workHoursLimit) * otRate;
-                    }
+    const toInsert: any[] = [];
+    const toUpdate: any[] = [];
+
+    const workHoursLimit = settings?.working_hours_per_day || 9;
+    const otRate = (settings as any)?.overtime_rate || 200;
+
+    employees.forEach(emp => {
+        const existing = existingMap.get(emp.id);
+        
+        // Skip if already paid
+        if (existing && existing.status === 'Paid') return;
+
+        const userAtt = allAttendance?.filter(a => a.user_id === emp.id) || [];
+        const lateCount = userAtt.filter(a => a.status?.toLowerCase() === 'late').length;
+        const totalFine = lateCount * lateFine;
+        
+        let totalOtPay = 0;
+        userAtt.forEach(a => {
+            if (a.check_in && a.check_out) {
+                const hours = (new Date(a.check_out).getTime() - new Date(a.check_in).getTime()) / (3600 * 1000);
+                if (hours > workHoursLimit) {
+                    totalOtPay += (hours - workHoursLimit) * otRate;
                 }
-            });
-            
-            return {
-                user_id: emp.id,
-                month: month,
-                basic_pay: 25000, 
-                hra: 5000,
-                allowances: 0,
-                bonus: 0,
-                overtime_pay: Math.round(totalOtPay),
-                fines: totalFine,
-                tax: 0,
-                net_payable: Math.round(25000 + 5000 + totalOtPay - totalFine),
-                status: 'Pending'
-            };
+            }
         });
 
-    if (newPayslips.length === 0) {
+        const basic = 25000;
+        const hra = 5000;
+        const otPay = Math.round(totalOtPay);
+        const net = Math.round(basic + hra + otPay - totalFine);
+
+        const payload = {
+            user_id: emp.id,
+            month: month,
+            basic_pay: basic,
+            hra: hra,
+            allowances: 0,
+            bonus: 0,
+            overtime_pay: otPay,
+            fines: totalFine,
+            tax: 0,
+            net_payable: net,
+            status: 'Pending'
+        };
+
+        if (existing) {
+            toUpdate.push({ id: existing.id, ...payload });
+        } else {
+            toInsert.push(payload);
+        }
+    });
+
+    if (toInsert.length === 0 && toUpdate.length === 0) {
         setLoading(false);
-        return toast.info("All employees already have payslips for this month.");
+        return toast.info("No new payslips to generate or update.");
     }
 
-    // 3. Insert new records
-    const { error: insError } = await supabase.from("payslips").insert(newPayslips);
-    
-    if (insError) {
-        toast.error(insError.message);
-    } else {
-        toast.success(`Generated ${newPayslips.length} new payslips for ${month}`);
+    try {
+        let successCount = 0;
+        
+        if (toInsert.length > 0) {
+            const { error: insError } = await supabase.from("payslips").insert(toInsert);
+            if (insError) throw insError;
+            successCount += toInsert.length;
+        }
+
+        if (toUpdate.length > 0) {
+            // Bulk update is tricky in Supabase without an RPC, so we'll do it one by one or via upsert if we had a unique constraint
+            // For now, let's just use upsert which works if we include the ID
+            const { error: updError } = await supabase.from("payslips").upsert(toUpdate);
+            if (updError) throw updError;
+            successCount += toUpdate.length;
+        }
+
+        toast.success(`Successfully processed ${successCount} payslips for ${month}`);
         loadData();
+    } catch (err: any) {
+        toast.error("Payroll Error: " + err.message);
+    } finally {
+        setLoading(false);
     }
-    setLoading(false);
   };
 
   const startEdit = (p: any) => {

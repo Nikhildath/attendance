@@ -1,82 +1,126 @@
--- CREATE PROFILES TABLE
--- NOTE: id stores the MAIN APP's user ID (not chat anonymous auth ID)
--- This ensures the same account uses the same profile across all devices.
-CREATE TABLE profiles (
-  id UUID PRIMARY KEY, -- Main app user ID (stable across devices)
-  username TEXT UNIQUE NOT NULL,
-  avatar_url TEXT,
-  full_name TEXT,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  status TEXT DEFAULT 'offline', -- online, offline, busy
-  last_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- ============================================================
+-- ATTENDLY PREMIUM CHAT SYSTEM SCHEMA
+-- Run this on your secondary CHAT Supabase project
+-- Target Project: pcgoxzcllijqqvwaqqpl
+-- ============================================================
+
+-- 1. EXTENSIONS
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 2. TABLES
+
+-- Profiles (Linked to main app User IDs)
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id uuid PRIMARY KEY, -- Matches main app profile.id
+    username text UNIQUE NOT NULL,
+    avatar_url text,
+    full_name text, -- Stores role (e.g., 'Admin', 'Employee')
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
 );
 
--- CREATE ROOMS TABLE
-CREATE TABLE rooms (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT NOT NULL,
-  description TEXT,
-  created_by UUID REFERENCES auth.users(id),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  is_private BOOLEAN DEFAULT FALSE
+-- Chat Rooms / Channels
+CREATE TABLE IF NOT EXISTS public.rooms (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL,
+    description text,
+    created_at timestamptz DEFAULT now()
 );
 
--- CREATE MESSAGES TABLE
-CREATE TABLE messages (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  room_id UUID REFERENCES rooms(id) ON DELETE CASCADE NOT NULL,
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-  content TEXT NOT NULL,
-  type TEXT DEFAULT 'text', -- text, image, video, audio, file
-  file_url TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  is_edited BOOLEAN DEFAULT FALSE,
-  reply_to UUID REFERENCES messages(id) -- For threaded replies
+-- Messages
+CREATE TABLE IF NOT EXISTS public.messages (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id uuid REFERENCES public.rooms(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+    content text,
+    type text DEFAULT 'text' CHECK (type IN ('text', 'image', 'video', 'audio', 'file')),
+    file_url text, -- For Base64 or direct URLs
+    created_at timestamptz DEFAULT now()
 );
 
--- CREATE ROOM_MEMBERS TABLE (For private rooms/group chats)
-CREATE TABLE room_members (
-  room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  PRIMARY KEY (room_id, user_id)
+-- Push Notification Subscriptions
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+    subscription jsonb NOT NULL,
+    updated_at timestamptz DEFAULT now(),
+    UNIQUE(user_id)
 );
 
--- ENABLE ROW LEVEL SECURITY (RLS)
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rooms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE room_members ENABLE ROW LEVEL SECURITY;
+-- 3. SECURITY (RLS)
 
--- POLICIES
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 
--- Profiles: Anyone can view, only owner can update
-CREATE POLICY "Public profiles are viewable by everyone." ON profiles FOR SELECT USING (true);
-CREATE POLICY "Users can insert own profile." ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
-CREATE POLICY "Users can update own profile." ON profiles FOR UPDATE USING (auth.uid() = id);
+-- Profiles Policies
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.profiles;
+CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles FOR SELECT USING (true);
 
--- Rooms: Viewable if public or if member
-CREATE POLICY "Public rooms are viewable by everyone." ON rooms FOR SELECT USING (NOT is_private OR EXISTS (SELECT 1 FROM room_members WHERE room_id = rooms.id AND user_id = auth.uid()));
-CREATE POLICY "Users can create rooms." ON rooms FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id OR id::text = auth.uid()::text);
 
--- Messages: Viewable if you can see the room
-CREATE POLICY "Messages are viewable by room members." ON messages FOR SELECT USING (EXISTS (SELECT 1 FROM rooms r WHERE r.id = room_id AND (NOT r.is_private OR EXISTS (SELECT 1 FROM room_members rm WHERE rm.room_id = r.id AND rm.user_id = auth.uid()))));
+DROP POLICY IF EXISTS "System can upsert profiles" ON public.profiles;
+CREATE POLICY "System can upsert profiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
 
--- Messages: Insert if you are in the room
-CREATE POLICY "Users can insert messages into rooms they belong to." ON messages FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM rooms r WHERE r.id = room_id AND (NOT r.is_private OR EXISTS (SELECT 1 FROM room_members rm WHERE rm.room_id = r.id AND rm.user_id = auth.uid()))));
+-- Rooms Policies
+DROP POLICY IF EXISTS "Rooms are viewable by authenticated users" ON public.rooms;
+CREATE POLICY "Rooms are viewable by authenticated users" ON public.rooms FOR SELECT USING (true);
 
--- Messages: Delete own messages
-CREATE POLICY "Users can delete own messages." ON messages FOR DELETE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Admins can manage rooms" ON public.rooms;
+CREATE POLICY "Admins can manage rooms" ON public.rooms FOR ALL USING (true);
 
--- REALTIME CONFIGURATION
--- Enable realtime for messages and profiles
-ALTER PUBLICATION supabase_realtime ADD TABLE messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE profiles;
-ALTER PUBLICATION supabase_realtime ADD TABLE rooms;
+-- Messages Policies
+DROP POLICY IF EXISTS "Messages are viewable by everyone" ON public.messages;
+CREATE POLICY "Messages are viewable by everyone" ON public.messages FOR SELECT USING (true);
 
--- AUTO-PURGE OLD MESSAGES CRON (Runs daily, deletes messages older than 30 days)
-CREATE EXTENSION IF NOT EXISTS pg_cron;
+DROP POLICY IF EXISTS "Users can insert messages" ON public.messages;
+CREATE POLICY "Users can insert messages" ON public.messages FOR INSERT WITH CHECK (true);
 
-SELECT cron.schedule('delete_old_chat_messages', '0 0 * * *', $$
-  DELETE FROM messages WHERE created_at < NOW() - INTERVAL '30 days';
-$$);
+DROP POLICY IF EXISTS "Users can delete own messages" ON public.messages;
+CREATE POLICY "Users can delete own messages" ON public.messages FOR DELETE USING (auth.uid() = user_id OR user_id::text = auth.uid()::text);
+
+-- Push Subscriptions Policies
+DROP POLICY IF EXISTS "Users can manage their own subscriptions" ON public.push_subscriptions;
+CREATE POLICY "Users can manage their own subscriptions" ON public.push_subscriptions FOR ALL USING (true) WITH CHECK (true);
+
+-- 4. REALTIME
+-- Enable realtime for messages (Wrapped in a safety block to avoid errors if already enabled)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' 
+        AND schemaname = 'public' 
+        AND tablename = 'messages'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+    END IF;
+END $$;
+
+-- 5. STORAGE BUCKET (Reference)
+-- If using Supabase Storage instead of Base64, create a bucket named 'chat-media'
+-- and set public access policies.
+
+-- 6. SAMPLE INITIAL ROOM
+INSERT INTO public.rooms (name, description) 
+VALUES ('general', 'Main workspace channel for everyone')
+ON CONFLICT DO NOTHING;
+
+-- 7. MANDATORY AUTOMATED CLEANUP
+-- This function purges messages older than 30 days to ensure performance and privacy.
+CREATE OR REPLACE FUNCTION public.purge_old_messages()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM public.messages 
+    WHERE created_at < now() - interval '30 days';
+END;
+$$ LANGUAGE plpgsql;
+
+-- To fully automate this in Supabase:
+-- 1. Go to "Database" -> "Cron" in your Supabase Dashboard
+-- 2. Create a new cron job:
+--    Name: 'monthly_cleanup'
+--    Schedule: '0 0 1 * *' (Runs on the 1st of every month)
+--    Command: 'SELECT purge_old_messages();'
