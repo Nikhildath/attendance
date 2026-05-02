@@ -86,68 +86,68 @@ function ChatPage() {
   useEffect(() => {
     if (mainAuthLoading) return;
 
+    // We need the main app profile for stable cross-device identification
+    if (!mainProfile?.id) {
+      setAuthErrorMsg("Main application session not found. Please log in to the main website first.");
+      setLoading(false);
+      return;
+    }
+
     const initChat = async () => {
-      console.log("Chat Init - Main Profile:", mainProfile?.id);
+      console.log("Chat Init - Stable Main Profile ID:", mainProfile.id);
       if (!CHAT_SUPABASE_URL || !CHAT_SUPABASE_ANON_KEY) {
         setAuthErrorMsg("Environment variables VITE_CHAT_SUPABASE_URL or VITE_CHAT_SUPABASE_ANON_KEY are missing in the main .env file.");
         setLoading(false);
         return;
       }
       try {
+        // Step 1: Sign in anonymously for Supabase API auth (just for RLS access)
         const { data: { session } } = await chatSupabase.auth.getSession();
-        
-        let activeUser = session?.user;
-
-        if (!activeUser && (mainUser || mainProfile)) {
-          console.log("Attempting automatic anonymous sign-in...");
+        if (!session) {
+          console.log("Signing into chat Supabase anonymously for API access...");
           const { data: authData, error: authError } = await chatSupabase.auth.signInAnonymously();
           if (authError) {
             console.error("Chat anonymous sign-in failed:", authError.message);
             setAuthErrorMsg(authError.message);
-          } else {
-            activeUser = authData.user;
+            setLoading(false);
+            return;
           }
+          if (authData.user) setUser(authData.user);
+        } else {
+          setUser(session.user);
         }
 
-        if (activeUser) {
-          setUser(activeUser);
-          
-          // Extract a reasonable username from available info
-          const rawName = mainProfile?.name || mainProfile?.email || mainUser?.email || 'User';
-          const username = rawName.split('@')[0];
-          const finalAvatarUrl = mainProfile?.avatar_url || `https://ui-avatars.com/api/?name=${username}&background=random`;
+        // Step 2: Use mainProfile.id as the STABLE profile key
+        // This ensures the same account gets the same profile on ALL devices
+        const stableId = mainProfile.id;
+        const rawName = mainProfile.name || mainProfile.email || 'User';
+        const username = rawName.split('@')[0];
+        const finalAvatarUrl = mainProfile.avatar_url || `https://ui-avatars.com/api/?name=${username}&background=random`;
 
-          // Always upsert profile on load to ensure it exists and is synced.
-          // Use onConflict: 'id' so that username uniqueness (if constraint still exists) won't block us.
-          const profilePayload = {
-            id: activeUser.id,
-            username: username,
-            avatar_url: finalAvatarUrl,
-            full_name: mainProfile?.role || 'Employee',
-          };
+        const profilePayload = {
+          id: stableId,
+          username: username,
+          avatar_url: finalAvatarUrl,
+          full_name: mainProfile.role || 'Employee',
+        };
 
-          let { error: profileError } = await chatSupabase
-            .from('profiles')
-            .upsert(profilePayload, { onConflict: 'id' });
-          
-          // Handle stale username conflict: an old anonymous session left a profile with the same username.
-          // Delete the orphaned row and retry.
-          if (profileError?.code === '23505') {
-            console.warn("Username conflict detected — cleaning up orphaned profile...");
-            await chatSupabase.from('profiles').delete().eq('username', username).neq('id', activeUser.id);
-            const retry = await chatSupabase.from('profiles').upsert(profilePayload, { onConflict: 'id' });
-            profileError = retry.error;
-          }
+        let { error: profileError } = await chatSupabase
+          .from('profiles')
+          .upsert(profilePayload, { onConflict: 'id' });
 
-          if (profileError) {
-            console.error("Profile sync error:", profileError);
-          }
-          // Always try to fetch — the profile may already exist from a previous session
-          fetchProfile(activeUser.id);
-        } else if (!session) {
-          console.warn("No main application user found. Automatic chat login skipped.");
-          setAuthErrorMsg("Main application session not found. Please log in to the main website first.");
+        // Handle stale username conflict from old anonymous profiles
+        if (profileError?.code === '23505') {
+          console.warn("Username conflict — cleaning up orphaned profile...");
+          await chatSupabase.from('profiles').delete().eq('username', username).neq('id', stableId);
+          const retry = await chatSupabase.from('profiles').upsert(profilePayload, { onConflict: 'id' });
+          profileError = retry.error;
         }
+
+        if (profileError) {
+          console.error("Profile sync error:", profileError);
+        }
+
+        fetchProfile(stableId);
       } catch (err) {
         console.error("Initialization error:", err);
       } finally {
@@ -161,13 +161,13 @@ function ChatPage() {
       Notification.requestPermission();
     }
 
+    // Auth state listener — only track auth session, profile is keyed by mainProfile.id
     const { data: { subscription } } = chatSupabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
     });
 
     return () => subscription.unsubscribe();
-  }, [mainUser, mainProfile, mainAuthLoading]);
+  }, [mainProfile?.id, mainAuthLoading]);
 
   const fetchProfile = async (userId: string) => {
     const { data } = await chatSupabase.from('profiles').select('*').eq('id', userId).single();
@@ -189,7 +189,7 @@ function ChatPage() {
           table: 'messages', 
           filter: `room_id=eq.${activeRoom.id}` 
         }, payload => {
-          if (payload.new.user_id !== user?.id && 'Notification' in window && Notification.permission === 'granted') {
+          if (payload.new.user_id !== profile?.id && 'Notification' in window && Notification.permission === 'granted') {
              new Notification('New message', { body: `You have a new message in ${activeRoom.name}`, icon: '/icon-192.png' });
           }
           fetchMessageWithProfile(payload.new.id);
@@ -252,11 +252,11 @@ function ChatPage() {
   };
 
   const sendMessage = async (content: string, type: Message['type'] = 'text', fileUrl?: string) => {
-    if (!user || !activeRoom) return;
+    if (!profile || !activeRoom) return;
 
     const { error } = await chatSupabase.from('messages').insert([{
       room_id: activeRoom.id,
-      user_id: user.id,
+      user_id: profile.id,
       content,
       type,
       file_url: fileUrl
@@ -273,7 +273,7 @@ function ChatPage() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    if (!file || !profile) return;
 
     if (file.size > 5 * 1024 * 1024) {
       alert("File is too large for Base64 storage. Please keep it under 5MB.");
@@ -496,7 +496,7 @@ function ChatPage() {
 
             <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-3 lg:p-6 scrollbar-none space-y-4 lg:space-y-6">
               {messages.filter(m => m.content.toLowerCase().includes(searchQuery.toLowerCase())).map((msg, i, arr) => {
-                const isOwn = msg.user_id === user.id;
+                const isOwn = msg.user_id === profile?.id;
                 const showAvatar = i === 0 || arr[i-1].user_id !== msg.user_id;
                 const canDelete = isOwn || profile?.is_admin || mainProfile?.role === 'Admin';
                 

@@ -1,6 +1,8 @@
 -- CREATE PROFILES TABLE
+-- NOTE: id stores the MAIN APP's user ID (not chat anonymous auth ID)
+-- This ensures the same account uses the same profile across all devices.
 CREATE TABLE profiles (
-  id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+  id UUID PRIMARY KEY, -- Main app user ID (stable across devices)
   username TEXT UNIQUE NOT NULL,
   avatar_url TEXT,
   full_name TEXT,
