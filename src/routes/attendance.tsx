@@ -70,8 +70,20 @@ function AttendancePage() {
   const [isHoliday, setIsHoliday] = useState<any>(null);
   const [todayRecord, setTodayRecord] = useState<any>(null);
   
+  // Liveness & Multi-Descriptor State
+  const [livenessChallenge, setLivenessChallenge] = useState<string | null>(null);
+  const [livenessPassed, setLivenessPassed] = useState(false);
+  const [registrationSamples, setRegistrationSamples] = useState<number[][]>([]);
+  const [registrationStep, setRegistrationStep] = useState(0); // 0-5 steps
+  const [challengeMsg, setChallengeMsg] = useState("");
+  
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [detectionActive, setDetectionActive] = useState(false);
+  const [lastSimilarity, setLastSimilarity] = useState<number>(0);
+  const matchCounter = useRef<number>(0);
+  const hasPunchedThisSession = useRef<boolean>(false);
 
   const loadRecent = async () => {
     if (!profile?.id) return;
@@ -129,6 +141,208 @@ function AttendancePage() {
     }
   }, [current?.id]);
 
+  useEffect(() => {
+    if ((state === "camera" || state === "scanning") && videoRef.current && canvasRef.current) {
+        setDetectionActive(true);
+    } else {
+        setDetectionActive(false);
+        // Clear canvas when not active
+        if (canvasRef.current) {
+            const ctx = canvasRef.current.getContext('2d');
+            ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        }
+    }
+  }, [state]);
+
+  useEffect(() => {
+    let animId: number;
+    let faceMod: any = null;
+
+    const runDetection = async () => {
+        if (!detectionActive || !videoRef.current || !canvasRef.current) return;
+        
+        if (!faceMod) {
+            faceMod = await import("@/lib/face-recognition");
+        }
+
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Sync canvas size with video display size
+        if (canvas.width !== video.clientWidth || canvas.height !== video.clientHeight) {
+            canvas.width = video.clientWidth;
+            canvas.height = video.clientHeight;
+        }
+
+        const result = await faceMod.detectFace(video);
+        
+        // Continuous similarity update for the bar
+        if ((state === "camera" || state === "scanning") && (profile as any)?.face_descriptor) {
+            // Run this asynchronously to not block the mesh too much
+            faceMod.getFaceDescriptor(video).then((desc: any) => {
+                if (desc) {
+                    const score = Math.round(similarity * 100);
+                    setLastSimilarity(score);
+
+                    // Auto-punch if identity is confirmed and stable (5 frames)
+                    // We rely on 'isMatch' (dist < 0.32) which is already paranoid-level strict.
+                    if (isMatch && state === "scanning" && !hasPunchedThisSession.current) {
+                        matchCounter.current++;
+                        if (matchCounter.current >= 5) {
+                            console.log("Auto-Punch: Identity Confirmed (Paranoid Consensus).");
+                            hasPunchedThisSession.current = true;
+                            saveAttendance();
+                        }
+                    } else {
+                        matchCounter.current = 0;
+                    }
+                }
+            }).catch(() => {});
+        }
+
+        const faceapi = faceMod.faceapi;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw background grid (movie effect)
+        ctx.strokeStyle = 'rgba(0, 242, 254, 0.05)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < canvas.width; i += 40) {
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+        }
+        for (let i = 0; i < canvas.height; i += 40) {
+            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+        }
+
+        // Global scanning line
+        const globalScanY = (Date.now() / 15) % canvas.height;
+        ctx.strokeStyle = 'rgba(0, 242, 254, 0.15)';
+        ctx.beginPath();
+        ctx.moveTo(0, globalScanY);
+        ctx.lineTo(canvas.width, globalScanY);
+        ctx.stroke();
+
+        if (result) {
+            const dims = faceapi.matchDimensions(canvas, video, true);
+            const resized = faceapi.resizeResults(result, dims);
+            
+            // Draw Movie-style Mesh with Pulse
+            const pulse = Math.sin(Date.now() / 200) * 0.2 + 0.8;
+            ctx.strokeStyle = `rgba(0, 242, 254, ${pulse})`; 
+            ctx.lineWidth = 1;
+            ctx.lineJoin = 'round';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00f2fe';
+
+            const landmarks = resized.landmarks;
+            const pts = landmarks.positions;
+
+            // Connect landmark points for a mesh effect
+            const drawPath = (indices: number[], close = false) => {
+                ctx.beginPath();
+                ctx.moveTo(pts[indices[0]].x, pts[indices[0]].y);
+                for (let i = 1; i < indices.length; i++) {
+                    ctx.lineTo(pts[indices[i]].x, pts[indices[i]].y);
+                }
+                if (close) ctx.closePath();
+                ctx.stroke();
+            };
+
+            // Enhanced Mesh - Connect more points for "movie" feel
+            drawPath(Array.from({length: 17}, (_, i) => i)); // Jaw
+            drawPath([17, 18, 19, 20, 21]); // L-Brow
+            drawPath([22, 23, 24, 25, 26]); // R-Brow
+            drawPath([27, 28, 29, 30, 33, 30]); // Nose bridge
+            drawPath([31, 32, 33, 34, 35]); // Nose bottom
+            drawPath([36, 37, 38, 39, 40, 41], true); // L-Eye
+            drawPath([42, 43, 44, 45, 46, 47], true); // R-Eye
+            drawPath(Array.from({length: 12}, (_, i) => 48 + i), true); // Lip-Outer
+            drawPath(Array.from({length: 8}, (_, i) => 60 + i), true); // Lip-Inner
+            
+            // Connecting brows to nose bridge
+            ctx.beginPath(); ctx.moveTo(pts[21].x, pts[21].y); ctx.lineTo(pts[27].x, pts[27].y); ctx.lineTo(pts[22].x, pts[22].y); ctx.stroke();
+
+            // Add futuristic scanning points
+            ctx.fillStyle = '#00f2fe';
+            ctx.shadowBlur = 15;
+            [30, 36, 45, 48, 54, 8, 0, 16, 21, 22].forEach(idx => {
+                ctx.beginPath();
+                ctx.arc(pts[idx].x, pts[idx].y, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Draw bounding box corners with "lock-on" effect
+            const box = resized.detection.box;
+            const cornerSize = 25;
+            const offset = Math.sin(Date.now() / 150) * 5; // Subtle bounce
+            
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#00f2fe';
+            ctx.shadowBlur = 0;
+            
+            // Top Left
+            ctx.beginPath();
+            ctx.moveTo(box.x - offset, box.y + cornerSize - offset); ctx.lineTo(box.x - offset, box.y - offset); ctx.lineTo(box.x + cornerSize - offset, box.y - offset);
+            ctx.stroke();
+            // Top Right
+            ctx.beginPath();
+            ctx.moveTo(box.x + box.width + offset - cornerSize, box.y - offset); ctx.lineTo(box.x + box.width + offset, box.y - offset); ctx.lineTo(box.x + box.width + offset, box.y + cornerSize - offset);
+            ctx.stroke();
+            // Bottom Left
+            ctx.beginPath();
+            ctx.moveTo(box.x - offset, box.y + box.height + offset - cornerSize); ctx.lineTo(box.x - offset, box.y + box.height + offset); ctx.lineTo(box.x + cornerSize - offset, box.y + box.height + offset);
+            ctx.stroke();
+            // Bottom Right
+            ctx.beginPath();
+            ctx.moveTo(box.x + box.width + offset - cornerSize, box.y + box.height + offset); ctx.lineTo(box.x + box.width + offset, box.y + box.height + offset); ctx.lineTo(box.x + box.width + offset, box.y + box.height + offset - cornerSize);
+            ctx.stroke();
+
+            // "Movie-style" Data Overlay
+            ctx.fillStyle = '#00f2fe';
+            ctx.font = 'bold 8px monospace';
+            ctx.shadowBlur = 5;
+            
+            const randomID = (Date.now() % 1000000).toString(16).toUpperCase();
+            const confidence = (resized.detection.score * 100).toFixed(1);
+            
+            ctx.fillText(`BIOMETRIC_ID: ${randomID}`, box.x + box.width + 10, box.y + 10);
+            ctx.fillText(`CONFIDENCE: ${confidence}%`, box.x + box.width + 10, box.y + 25);
+            ctx.fillText(`COORD_X: ${box.x.toFixed(0)}`, box.x + box.width + 10, box.y + 40);
+            ctx.fillText(`COORD_Y: ${box.y.toFixed(0)}`, box.x + box.width + 10, box.y + 55);
+            ctx.fillText(`STATUS: ANALYZING`, box.x + box.width + 10, box.y + 70);
+
+            // Draw scanning line within the face box
+            const scanY = (Date.now() / 8) % box.height;
+            const gradient = ctx.createLinearGradient(box.x, box.y + scanY - 5, box.x, box.y + scanY);
+            gradient.addColorStop(0, 'transparent');
+            gradient.addColorStop(1, 'rgba(0, 242, 254, 0.4)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(box.x, box.y + scanY - 10, box.width, 10);
+            
+            ctx.strokeStyle = 'rgba(0, 242, 254, 0.8)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(box.x, box.y + scanY); ctx.lineTo(box.x + box.width, box.y + scanY);
+            ctx.stroke();
+
+            // Primary Status Text
+            ctx.fillStyle = '#00f2fe';
+            ctx.font = 'black 10px Inter, sans-serif';
+            ctx.fillText('• FACE_DETECTED_SYNC_ACTIVE', box.x, box.y - 12);
+        }
+
+        animId = requestAnimationFrame(runDetection);
+    };
+
+    if (detectionActive) {
+        animId = requestAnimationFrame(runDetection);
+    }
+    
+    return () => cancelAnimationFrame(animId);
+  }, [detectionActive]);
+
   useEffect(() => () => stopCamera(), []);
 
   function stopCamera() {
@@ -174,14 +388,28 @@ function AttendancePage() {
   async function startCamera() {
     setErrorMsg("");
     setState("camera");
+    
+    // Don't restart if already active and streaming
+    if (streamRef.current && videoRef.current && !videoRef.current.paused) {
+        return;
+    }
+
     try {
+      stopCamera(); // Ensure clean state
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        // Handle play promise to avoid interruption errors
+        const playPromise = videoRef.current.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                if (error.name !== "AbortError") console.error("Camera play failed:", error);
+            });
+        }
       }
-    } catch {
+    } catch (err) {
+      console.error("Camera access error:", err);
       setErrorMsg("Camera permission denied. Simulating face scan...");
       setState("scanning");
       saveAttendance();
@@ -320,46 +548,47 @@ function AttendancePage() {
   async function registerFace() {
     if (!modelsLoaded) return toast.info("Face recognition models are loading, please wait...");
     setErrorMsg("");
-    setState("camera");
+    setRegistrationSamples([]);
+    setRegistrationStep(0);
+    
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      if (!streamRef.current) await startCamera();
+      await new Promise(res => setTimeout(res, 800));
       
-      toast.info("Capturing face... please look directly at the camera", { duration: 3000 });
-      
+      toast.info("Registering face... Please look directly at the camera", { duration: 5000 });
       const { getFaceDescriptor } = await import("@/lib/face-recognition");
       
-      // Try to capture a high-quality descriptor (max 10 attempts)
-      let descriptor = null;
-      for (let i = 0; i < 10; i++) {
-        descriptor = await getFaceDescriptor(videoRef.current!);
-        if (descriptor) break;
-        await new Promise(res => setTimeout(res, 500));
-      }
+      const allSamples: number[][] = [];
+      const totalSamplesNeeded = 15;
       
-      if (descriptor) {
+      for (let i = 0; i < totalSamplesNeeded; i++) {
+        setRegistrationStep(Math.round(((i + 1) / totalSamplesNeeded) * 100));
+        const desc = await getFaceDescriptor(videoRef.current!);
+        if (desc) allSamples.push(Array.from(desc));
+        await new Promise(res => setTimeout(res, 250));
+      }
+
+      if (allSamples.length >= 5) {
+        console.log(`Captured ${allSamples.length} samples. Storing...`);
         const targetId = profile?.id || user?.id;
-        if (!targetId) throw new Error("User ID not found. Please re-login.");
+        if (!targetId) throw new Error("User ID not found.");
 
         const { data: success, error } = await supabase
           .rpc('update_own_face', {
             p_id: targetId,
-            p_descriptor: Array.from(descriptor)
+            p_descriptor: allSamples
           });
         
         if (error) throw error;
         toast.success("Face registered successfully!");
         await refreshProfile();
       } else {
-        toast.error("Could not detect face. Please ensure you are in a well-lit area and looking at the camera.");
+        toast.error("Could not capture enough face samples. Please ensure your face is clear.");
       }
     } catch (err: any) {
       toast.error("Registration failed: " + err.message);
     } finally {
+      setRegistrationStep(0);
       stopCamera();
       setState("idle");
     }
@@ -367,58 +596,40 @@ function AttendancePage() {
 
   async function verifyAndPunch() {
     setState("scanning");
+    
     try {
       const { getFaceDescriptor, compareFaces } = await import("@/lib/face-recognition");
       
-      // Try to capture a face for up to 3 seconds
+      // Directly capture and match (No liveness)
       let liveDescriptor = null;
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 10; i++) {
         liveDescriptor = await getFaceDescriptor(videoRef.current!);
         if (liveDescriptor) break;
-        await new Promise(res => setTimeout(res, 500));
+        await new Promise(res => setTimeout(res, 300));
       }
       
       if (!liveDescriptor) {
-        toast.error("No face detected. Please position your face clearly in the center and ensure good lighting.");
+        toast.error("No face detected. Please position your face clearly.");
         setState("camera");
         return;
       }
 
-      let storedDescriptorArray = (profile as any)?.face_descriptor;
-      if (!storedDescriptorArray && profile?.id) {
-        const { data: latestProfile, error: profileError } = await supabase
-          .from("profiles")
-          .select("face_descriptor, face_registered")
-          .eq("id", profile.id)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error("Failed to reload face descriptor:", profileError);
-        } else if (latestProfile?.face_descriptor) {
-          storedDescriptorArray = latestProfile.face_descriptor;
-          await refreshProfile();
-        }
-      }
-
-      if (!storedDescriptorArray) {
-          console.error("Profile says registered but descriptor is missing:", profile);
-          toast.error("Face data is missing from your profile. Please re-register.");
+      const storedDescriptors = (profile as any)?.face_descriptor;
+      if (!storedDescriptors) {
+          toast.error("Face data missing. Please re-register.");
           setState("idle");
           return;
       }
 
-      const storedDescriptor = new Float32Array(storedDescriptorArray);
-      const { isMatch, distance } = compareFaces(liveDescriptor, storedDescriptor);
+      const { isMatch, similarity } = compareFaces(liveDescriptor, storedDescriptors);
+      const matchPercent = Math.round(similarity * 100);
+      setLastSimilarity(matchPercent);
 
       if (isMatch) {
+        console.log(`Verification SUCCESS: ${matchPercent}% similarity`);
         saveAttendance();
       } else {
-        const diff = Math.round((1 - distance) * 100);
-        if (distance < 0.75) {
-            toast.error(`Verification failed (${diff}% match). Please ensure better lighting or re-register if your appearance has changed.`);
-        } else {
-            toast.error("Face not recognized. Please look directly at the camera.");
-        }
+        toast.error(`Verification failed. Match: ${matchPercent}%`);
         setState("camera");
       }
     } catch (err: any) {
@@ -557,22 +768,35 @@ function AttendancePage() {
         title="Mark Attendance"
         subtitle="Real-time verification with geo-fence protection"
         actions={
-          <div className="flex rounded-xl border border-border/50 bg-muted/30 p-1 shadow-sm">
-            {(["web","mobile"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => {
-                  setPunchMode(m);
-                  setState("idle");
-                  stopCamera();
-                  if (m === "mobile") refreshProfile();
-                }}
-                className={cn("rounded-lg px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all",
-                  punchMode === m ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
-              >
-                {m === "web" ? "Web" : "Mobile"}
-              </button>
-            ))}
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
+              <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-tighter text-primary">SFace AI Active</span>
+            </div>
+            <div className="flex rounded-xl border border-border/50 bg-muted/30 p-1 shadow-sm">
+              {(["web","mobile"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    setPunchMode(m);
+                    setState("idle");
+                    stopCamera();
+                    if (m === "mobile") refreshProfile();
+                  }}
+                  className={cn("rounded-lg px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all",
+                    punchMode === m ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
+                >
+                  {m === "web" ? "Web" : "Mobile"}
+                </button>
+              ))}
+            </div>
+            <button 
+              onClick={registerFace}
+              className="rounded-xl border border-border/50 bg-background px-4 py-2 text-[10px] font-black uppercase tracking-widest text-primary shadow-sm hover:bg-muted/50 transition-all flex items-center gap-2"
+            >
+              <ScanFace className="h-3 w-3" />
+              Register Face Again
+            </button>
           </div>
         }
       />
@@ -580,12 +804,28 @@ function AttendancePage() {
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
         <div className="rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm p-5 md:p-8 shadow-sm transition-all hover:shadow-elegant">
           {(!modelsLoaded && profile?.role === "Admin") && (
-            <div className="mb-4 rounded-lg bg-warning/10 p-3 text-[11px] text-warning border border-warning/30 flex items-center justify-between">
-              <span>⚠️ Models failing to load? You can bypass for testing.</span>
-              <button onClick={saveAttendance} className="underline font-bold">Skip & Mark</button>
+            <div className="mb-4 rounded-lg bg-info/10 p-3 text-[11px] text-info border border-info/30 flex items-center justify-between">
+              <div className="flex flex-col">
+                <span className="font-bold">✨ Biometric Security Active</span>
+                <span className="opacity-70">Please look directly at the camera.</span>
+              </div>
             </div>
           )}
           <div className="relative mx-auto aspect-[3/4] md:aspect-video w-full overflow-hidden rounded-xl border-2 border-dashed bg-gradient-to-br from-muted/40 to-muted/10">
+            {registrationStep > 0 && (
+              <div className="absolute top-4 left-4 right-4 z-40 bg-black/60 backdrop-blur-md rounded-lg p-3 border border-primary/30 flex items-center justify-between animate-in slide-in-from-top duration-500">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-primary uppercase tracking-widest">Biometric Enrollment</span>
+                  <span className="text-sm font-bold text-white">Capturing Samples...</span>
+                </div>
+                <div className="flex-1 px-6">
+                    <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-primary transition-all duration-300" style={{ width: `${registrationStep}%` }} />
+                    </div>
+                </div>
+                <div className="text-xs font-black text-white">{registrationStep}%</div>
+              </div>
+            )}
             <video 
               ref={videoRef} 
               muted 
@@ -595,6 +835,41 @@ function AttendancePage() {
                 (state !== "camera" && state !== "scanning") || punchMode === "mobile" ? "hidden" : ""
               )} 
             />
+            <canvas 
+              ref={canvasRef}
+              className={cn(
+                "absolute inset-0 h-full w-full pointer-events-none z-10",
+                (state !== "camera" && state !== "scanning") || punchMode === "mobile" ? "hidden" : ""
+              )}
+            />
+
+            {/* Real-time Similarity Bar Overlay */}
+            {(state === "scanning" || state === "camera") && punchMode === "web" && (
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 w-[85%] max-w-md space-y-2 pointer-events-none">
+                <div className="flex justify-between text-[10px] uppercase tracking-widest font-black drop-shadow-md">
+                  <span className={cn(lastSimilarity >= 90 ? "text-emerald-400" : "text-cyan-400")}>
+                    {lastSimilarity >= 90 ? "✓ Identity Verified" : "⟲ Analyzing Biometrics"}
+                  </span>
+                  <span className="text-white font-mono">{lastSimilarity}% Match</span>
+                </div>
+                <div className="relative h-2 w-full overflow-hidden rounded-full bg-black/40 backdrop-blur-md border border-white/10 shadow-2xl">
+                  {/* Threshold Marker at 90% */}
+                  <div className="absolute left-[90%] top-0 bottom-0 w-[2px] bg-white/20 z-10" />
+                  
+                  {/* Progress Fill */}
+                  <div 
+                    className={cn(
+                      "h-full transition-all duration-500 ease-out",
+                      lastSimilarity >= 90 ? "bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.6)]" : "bg-gradient-to-r from-cyan-600 to-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.4)]"
+                    )}
+                    style={{ width: `${lastSimilarity}%` }}
+                  />
+                </div>
+                {lastSimilarity > 0 && lastSimilarity < 90 && (
+                  <p className="text-[9px] text-center text-white/60 font-bold tracking-tighter uppercase drop-shadow-sm">Security clearance required: 90% similarity</p>
+                )}
+              </div>
+            )}
 
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center pointer-events-none">
               {state === "scanning" ? (
@@ -611,6 +886,12 @@ function AttendancePage() {
                     {todayRecord?.check_out ? "Check-Out Successful" : "Punch Successful"}
                   </div>
                   <div className="text-xs text-muted-foreground">Recorded at {markedAt}</div>
+                  <button 
+                    onClick={registerFace} 
+                    className="mt-6 pointer-events-auto text-[10px] font-black uppercase tracking-[0.2em] text-primary hover:underline"
+                  >
+                    Update Face Data?
+                  </button>
                 </div>
               ) : punchMode === "mobile" ? (
                 <div className="pointer-events-auto flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-300">
@@ -669,8 +950,11 @@ function AttendancePage() {
                 <div className="flex flex-col items-center gap-3 animate-in fade-in zoom-in duration-300">
                   {state === "idle" && (
                     <>
-                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 relative">
                         <ScanFace className="h-10 w-10 text-primary" />
+                        <div className="absolute -bottom-2 whitespace-nowrap bg-primary text-[8px] font-black uppercase px-2 py-0.5 rounded-full text-primary-foreground shadow-sm">
+                          SFace AI Active
+                        </div>
                       </div>
                       <div className="text-sm font-medium">
                         {profile?.face_registered ? "Face Recognition Ready" : "Face Not Registered"}
@@ -680,12 +964,20 @@ function AttendancePage() {
                             ? "Position your face inside the frame." 
                             : "You need to register your face before marking attendance."}
                       </div>
-                      {!profile?.face_registered && (
+                      {!profile?.face_registered ? (
                         <button 
                           onClick={registerFace} 
-                          className="mt-4 pointer-events-auto rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-elegant hover:opacity-90"
+                          className="mt-4 pointer-events-auto rounded-xl bg-primary px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-primary-foreground shadow-elegant hover:scale-105 active:scale-95 transition-all"
                         >
                           Register My Face Now
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={registerFace} 
+                          className="mt-4 pointer-events-auto flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-primary hover:bg-primary/10 transition-all shadow-sm"
+                        >
+                          <ScanFace className="h-3.5 w-3.5" />
+                          Register Face Again
                         </button>
                       )}
                     </>
@@ -698,12 +990,21 @@ function AttendancePage() {
               <div className="pointer-events-none absolute left-1/2 top-1/2 h-[70%] w-[80%] md:h-80 md:w-68 -translate-x-1/2 -translate-y-1/2 rounded-[45%] border-2 border-primary/60 shadow-elegant" />
             )}
             {state === "camera" && (
-              <button
-                onClick={verifyAndPunch}
-                className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-elegant pointer-events-auto"
-              >
-                Verify & Punch
-              </button>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 pointer-events-auto">
+                <button
+                  onClick={verifyAndPunch}
+                  className="rounded-full bg-primary px-8 py-3 text-sm font-black uppercase tracking-widest text-primary-foreground shadow-elegant hover:scale-105 active:scale-95 transition-all"
+                >
+                  Verify & Punch
+                </button>
+                <button
+                  onClick={registerFace}
+                  className="group pointer-events-auto flex items-center gap-2 rounded-full border border-white/20 bg-black/40 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-white backdrop-blur-md transition-all hover:bg-black/60 hover:border-white/40"
+                >
+                  <ScanFace className="h-3.5 w-3.5 transition-transform group-hover:scale-110" />
+                  Register Face Again
+                </button>
+              </div>
             )}
           </div>
 

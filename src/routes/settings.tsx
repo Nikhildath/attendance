@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/common/PageHeader";
-import { User, Building2, Bell, Save } from "lucide-react";
+import { User, Building2, Bell, Save, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useSettings } from "@/lib/settings-context";
@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import Cropper from "react-easy-crop";
 import getCroppedImg from "@/lib/cropImage";
 import { Camera, X } from "lucide-react";
+import { requestNotificationPermission } from "@/lib/push";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -105,7 +106,7 @@ function SettingsPage() {
       <PageHeader title="Settings" subtitle="Manage your profile, work hours and system preferences" />
 
       <div className="grid gap-6 md:grid-cols-[220px_1fr]">
-        <nav className="space-y-1 rounded-xl border bg-card p-2 shadow-card">
+        <nav className="flex flex-row overflow-x-auto no-scrollbar md:flex-col gap-1 rounded-2xl border bg-card/50 p-2 shadow-sm backdrop-blur-sm">
           {tabs.map((t) => {
             const Icon = t.icon;
             const active = tab === t.id;
@@ -114,12 +115,14 @@ function SettingsPage() {
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                  active ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50"
+                  "flex items-center gap-3 rounded-xl px-4 md:px-3 py-2.5 text-sm font-bold transition-all shrink-0",
+                  active 
+                    ? "bg-primary text-primary-foreground shadow-md scale-105" 
+                    : "text-muted-foreground hover:bg-accent/50"
                 )}
               >
                 <Icon className="h-4 w-4" />
-                {t.label}
+                <span>{t.label}</span>
               </button>
             );
           })}
@@ -488,16 +491,80 @@ function SystemSettings({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-lg font-semibold">System</h2>
-        <p className="text-xs text-muted-foreground">Notifications and app preferences</p>
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold">System</h2>
+          <p className="text-xs text-muted-foreground">Notifications and app preferences</p>
 
-        <div className="mt-5 space-y-3">
-          <Toggle label="Email notifications" defaultChecked />
-          <Toggle label="Push notifications" defaultChecked />
-          <Toggle label="Weekly attendance summary" />
-          <Toggle label="Leave approval alerts" defaultChecked />
-          <Toggle label="Reduce motion" />
+          <div className="mt-5 space-y-3">
+            <Toggle label="Email notifications" defaultChecked />
+            <div className="flex items-center justify-between rounded-lg border bg-background/40 p-4">
+              <span className="text-sm">Push notifications</span>
+              <button 
+                onClick={async () => {
+                  const granted = await requestNotificationPermission();
+                  if (granted) toast.success("Notifications enabled!");
+                  else toast.error("Notifications were blocked by the browser.");
+                }}
+                className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline"
+              >
+                Enable in Browser
+              </button>
+            </div>
+            <Toggle label="Weekly attendance summary" />
+            <Toggle label="Leave approval alerts" defaultChecked />
+            <Toggle label="Reduce motion" />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-6 transition-all hover:bg-destructive/10">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-wider text-destructive">Maintenance & Hard Reset</h3>
+              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                Experiencing glitches or loading issues? A hard reset will clear all local data, unregister service workers, and log you out to refresh the application state.
+              </p>
+            </div>
+          </div>
+          
+          <div className="mt-6 flex flex-wrap gap-4">
+            <button 
+              onClick={() => {
+                if (confirm("This will clear all local data and log you out. Are you sure?")) {
+                  // Clear storage
+                  localStorage.clear();
+                  sessionStorage.clear();
+                  
+                  // Unregister service workers
+                  if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then((registrations) => {
+                      for (let registration of registrations) {
+                        registration.unregister();
+                      }
+                    });
+                  }
+                  
+                  // Logout and Reload
+                  supabase.auth.signOut().then(() => {
+                    window.location.href = "/login?reset=true";
+                  });
+                }
+              }}
+              className="rounded-xl bg-destructive px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white shadow-lg shadow-destructive/20 transition-all hover:-translate-y-0.5 active:scale-95"
+            >
+              Perform Hard Reset
+            </button>
+            
+            <button 
+              onClick={() => window.location.reload()}
+              className="rounded-xl border border-border bg-card px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground hover:bg-accent transition-all"
+            >
+              Refresh Application
+            </button>
+          </div>
         </div>
       </div>
 

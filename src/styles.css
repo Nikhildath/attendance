@@ -159,6 +159,7 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    padding-bottom: env(safe-area-inset-bottom);
   }
   ::selection { background: color-mix(in oklab, var(--primary) 30%, transparent); }
 }
@@ -179,6 +180,81 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* --- Mobile Table Utilities --- */
+  .responsive-table-container {
+    @apply relative w-full overflow-hidden rounded-[2rem] border border-border/50 bg-card shadow-sm;
+  }
+
+  .scrollable-table {
+    @apply overflow-x-auto no-scrollbar;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .scroll-hint {
+    @apply block md:hidden px-5 py-2 border-b bg-muted/20 text-[9px] font-black text-muted-foreground uppercase tracking-widest text-center;
+  }
+
+  .mobile-only {
+    @apply block md:hidden;
+  }
+
+  .desktop-only {
+    @apply hidden md:block;
+  }
+
+  @keyframes scan-line {
+    0% { transform: translateY(0); opacity: 0; }
+    50% { opacity: 1; }
+    100% { transform: translateY(100%); opacity: 0; }
+  }
+
+  .animate-scan-line {
+    animation: scan-line 2s linear infinite;
+  }
+
+  /* --- Premium Mobile Enhancements --- */
+  .active-scale:active {
+    transform: scale(0.96);
+    transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .tap-highlight-none {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .swipe-hint::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 40px;
+    background: linear-gradient(to left, var(--background), transparent);
+    pointer-events: none;
+    opacity: 0.8;
+  }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 3s ease-in-out infinite;
 }
 
 /* Leaflet Aesthetics */

@@ -441,16 +441,16 @@
   grant execute on function public.upsert_staff_tracking(uuid, numeric, numeric, integer, numeric, numeric, text, text, text, text)
   to postgres, anon, authenticated, service_role;
 
-  -- RPC: Update Own Face Descriptor
+  -- RPC: Update Own Face Descriptor (Supports Multi-Embeddings)
   create or replace function public.update_own_face(
       p_id uuid,
-      p_descriptor float8[]
+      p_descriptor jsonb
   )
   returns boolean as $$
   begin
     update public.profiles
     set 
-      face_descriptor = to_jsonb(p_descriptor),
+      face_descriptor = p_descriptor,
       face_registered = true,
       updated_at = now()
     where id = p_id;
@@ -459,7 +459,7 @@
   end;
   $$ language plpgsql security definer set search_path = public;
 
-  grant execute on function public.update_own_face(uuid, float8[])
+  grant execute on function public.update_own_face(uuid, jsonb)
   to postgres, anon, authenticated, service_role;
 
   -- Trigger: Handle New User from Auth

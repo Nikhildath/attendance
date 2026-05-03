@@ -310,58 +310,58 @@ function ReportsPage() {
       )}
 
       {tab === "muster" && (
-        <div className="overflow-hidden rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm shadow-sm transition-all hover:shadow-elegant">
-          <div className="flex items-center justify-between border-b p-5">
+        <div className="responsive-table-container transition-all hover:shadow-elegant">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b p-5 gap-4">
             <div>
-              <h2 className="text-lg font-semibold">Muster Roll · {today.toLocaleString("en", { month: "long", year: "numeric" })}</h2>
-              <p className="text-xs text-muted-foreground">Daily attendance per employee</p>
+              <h2 className="text-lg font-black tracking-tight">Muster Roll · {today.toLocaleString("en", { month: "long", year: "numeric" })}</h2>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Daily attendance per employee</p>
             </div>
-            <div className="flex items-center gap-3 text-[11px] overflow-x-auto no-scrollbar pb-1">
+            <div className="flex items-center gap-3 text-[10px] overflow-x-auto no-scrollbar pb-1">
               {(["present","late","absent","leave","holiday","weekend"] as const).map((s) => (
-                <span key={s} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                <span key={s} className="inline-flex items-center gap-1.5 whitespace-nowrap font-bold text-muted-foreground uppercase tracking-tighter">
                   <span className={cn("h-2.5 w-2.5 rounded-sm", statusMeta[s].dot)} />
                   {statusMeta[s].label}
                 </span>
               ))}
             </div>
           </div>
-          <div className="block md:hidden px-5 py-2 border-b bg-muted/20 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-            ← Scroll horizontally to view all days →
+          <div className="scroll-hint">
+            ← Swipe to view days →
           </div>
-          <div className="overflow-x-auto no-scrollbar">
+          <div className="scrollable-table">
             <table className="w-full text-xs">
-              <thead className="bg-muted/40 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <thead className="bg-muted/40 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                 <tr>
-                  <th className="sticky left-0 z-10 bg-muted/60 px-4 py-3">Employee</th>
+                  <th className="sticky left-0 z-10 bg-muted/60 backdrop-blur-md px-4 py-4">Employee</th>
                   {Array.from({ length: daysInMonth }, (_, i) => (
-                    <th key={i} className="px-1 py-3 text-center font-semibold">{i + 1}</th>
+                    <th key={i} className="px-1 py-4 text-center">{i + 1}</th>
                   ))}
-                  <th className="px-3 py-3 text-center">P</th>
-                  <th className="px-3 py-3 text-center">A</th>
-                  <th className="px-3 py-3 text-center">L</th>
+                  <th className="px-3 py-4 text-center">P</th>
+                  <th className="px-3 py-4 text-center">A</th>
+                  <th className="px-3 py-4 text-center">L</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                   <tr><td colSpan={daysInMonth + 4} className="py-20 text-center text-muted-foreground">Loading report data...</td></tr>
+                   <tr><td colSpan={daysInMonth + 4} className="py-20 text-center text-muted-foreground font-bold uppercase tracking-widest text-[10px]">Loading report data...</td></tr>
                 ) : muster.map((row) => {
                   const p = row.row.filter((s: string) => s === "present").length;
                   const a = row.row.filter((s: string) => s === "absent").length;
                   const l = row.row.filter((s: string) => s === "leave" || s === "late").length;
                   return (
-                    <tr key={row.id} className="border-t hover:bg-accent/20">
-                      <td className="sticky left-0 z-10 bg-card px-4 py-2">
-                        <div className="text-sm font-medium">{row.name}</div>
-                        <div className="text-[10px] text-muted-foreground">{row.role}</div>
+                    <tr key={row.id} className="border-t hover:bg-accent/20 transition-colors">
+                      <td className="sticky left-0 z-10 bg-card/80 backdrop-blur-md px-4 py-3 shadow-[5px_0_10px_-5px_rgba(0,0,0,0.05)]">
+                        <div className="text-sm font-black tracking-tight">{row.name}</div>
+                        <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">{row.role}</div>
                       </td>
                       {row.row.map((s: AttendanceStatus, i: number) => (
-                        <td key={i} className="px-0.5 py-2">
-                          <div className={cn("mx-auto h-5 w-5 rounded-sm", statusMeta[s].dot)} title={statusMeta[s].label} />
+                        <td key={i} className="px-0.5 py-3">
+                          <div className={cn("mx-auto h-5 w-5 rounded-md shadow-sm transition-transform hover:scale-110", statusMeta[s].dot)} title={statusMeta[s].label} />
                         </td>
                       ))}
-                      <td className="px-3 py-2 text-center font-bold text-success">{p}</td>
-                      <td className="px-3 py-2 text-center font-bold text-destructive">{a}</td>
-                      <td className="px-3 py-2 text-center font-bold text-info">{l}</td>
+                      <td className="px-3 py-3 text-center font-black text-success bg-success/5">{p}</td>
+                      <td className="px-3 py-3 text-center font-black text-destructive bg-destructive/5">{a}</td>
+                      <td className="px-3 py-3 text-center font-black text-info bg-info/5">{l}</td>
                     </tr>
                   );
                 })}
@@ -372,43 +372,59 @@ function ReportsPage() {
       )}
 
       {tab === "payroll" && (
-        <div className="overflow-hidden rounded-[2rem] border border-border/50 bg-card/50 backdrop-blur-sm shadow-sm transition-all hover:shadow-elegant">
-          <div className="border-b p-5">
-            <h2 className="text-lg font-semibold">Payroll Summary Report</h2>
-            <p className="text-xs text-muted-foreground">Latest generated payslips overview</p>
+        <div className="responsive-table-container transition-all hover:shadow-elegant">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b p-5 gap-4">
+            <div>
+              <h2 className="text-lg font-black tracking-tight">Payroll Summary Report</h2>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Net salary and deduction breakdown</p>
+            </div>
+            <button 
+              onClick={() => exportToCSV(payslips.map(p => ({ Employee: p.profiles?.name, Month: p.month, Net: p.net_payable, Status: p.status })), "payroll_report")}
+              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 px-4 py-2 text-xs font-black uppercase tracking-widest hover:bg-accent transition-all"
+            >
+              <Download className="h-3.5 w-3.5" /> Export
+            </button>
           </div>
-          <div className="overflow-x-auto">
+          <div className="scroll-hint">
+            ← Swipe to view payroll details →
+          </div>
+          <div className="scrollable-table">
             <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <thead className="bg-muted/40 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                 <tr>
-                  <th className="px-5 py-3">Employee</th>
-                  <th className="px-4 py-3">Month</th>
-                  <th className="px-4 py-3 text-right">Gross</th>
-                  <th className="px-4 py-3 text-right text-destructive">Deductions</th>
-                  <th className="px-4 py-3 text-right">Net</th>
-                  <th className="px-4 py-3">Status</th>
+                  <th className="px-5 py-4">Employee</th>
+                  <th className="px-4 py-4">Month</th>
+                  <th className="px-4 py-4 text-right">Gross</th>
+                  <th className="px-4 py-4 text-right text-destructive">Deductions</th>
+                  <th className="px-4 py-4 text-right">Net Payable</th>
+                  <th className="px-4 py-4 text-center">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} className="py-20 text-center text-muted-foreground">Loading payroll data...</td></tr>
+                  <tr><td colSpan={6} className="py-20 text-center text-muted-foreground font-bold uppercase tracking-widest text-[10px]">Loading payroll data...</td></tr>
                 ) : payslips.length === 0 ? (
-                  <tr><td colSpan={6} className="py-20 text-center text-muted-foreground">No payroll records found.</td></tr>
+                  <tr><td colSpan={6} className="py-20 text-center text-muted-foreground font-bold uppercase tracking-widest text-[10px]">No payroll records found.</td></tr>
                 ) : payslips.map((p) => {
                   const gross = Number(p.basic_pay) + Number(p.hra) + Number(p.allowances) + Number(p.bonus) + Number(p.overtime_pay);
                   const ded = Number(p.fines) + Number(p.loan_deduction) + Number(p.tax);
                   return (
-                    <tr key={p.id} className="border-t hover:bg-accent/20">
-                      <td className="px-5 py-3 font-medium">{p.profiles?.name}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{p.month}</td>
-                      <td className="px-4 py-3 text-right">{currency} {gross.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right text-destructive">−{currency} {ded.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right font-bold">{currency} {p.net_payable.toLocaleString()}</td>
-                      <td className="px-4 py-3">
-                        <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                    <tr key={p.id} className="border-t hover:bg-accent/20 transition-colors">
+                      <td className="px-5 py-4">
+                        <div className="font-black tracking-tight">{p.profiles?.name}</div>
+                        <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Payslip ID: {p.id.slice(0, 8)}</div>
+                      </td>
+                      <td className="px-4 py-4 text-xs font-bold text-muted-foreground">{p.month}</td>
+                      <td className="px-4 py-4 text-right font-medium">{currency} {gross.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-right font-medium text-destructive">−{currency} {ded.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-right font-black text-primary text-base">{currency} {p.net_payable.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-center">
+                        <span className={cn("inline-flex rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest shadow-sm",
                           p.status === "Paid" ? "border-success/40 bg-success/10 text-success" :
                           p.status === "Processing" ? "border-info/40 bg-info/10 text-info" :
-                          "border-warning/40 bg-warning/10 text-warning")}>{p.status}</span>
+                          "border-warning/40 bg-warning/10 text-warning")}>
+                          {p.status}
+                        </span>
                       </td>
                     </tr>
                   );

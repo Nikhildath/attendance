@@ -1,13 +1,40 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { cn } from "@/lib/utils";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Home, Camera, CalendarDays, User, LayoutGrid, MessageSquare } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { profile } = useAuth();
+
+  useEffect(() => {
+    if (profile?.id) {
+      const subscribeToPush = async () => {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: 'BEl62i4nZ9AnWvV-uSQuvQ6S3vL3-uM5A3RzV-yN8U1C5pQ6F-MvM6Y-UvB9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9Z9'
+          });
+          
+          await supabase.from('push_subscriptions').upsert({
+            user_id: profile.id,
+            subscription: JSON.parse(JSON.stringify(subscription)),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id, subscription' });
+        } catch (err) {
+          console.warn('Push subscription failed:', err);
+        }
+      };
+      subscribeToPush();
+    }
+  }, [profile?.id]);
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -38,22 +65,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Bottom Navigation */}
       <nav className={cn(
-        "fixed bottom-0 left-0 right-0 z-40 h-16 border-t bg-background/80 backdrop-blur-lg md:hidden transition-transform duration-300",
-        mobileOpen ? "translate-y-full" : "translate-y-0"
+        "fixed bottom-0 left-0 right-0 z-40 h-20 border-t border-border/20 bg-background/60 backdrop-blur-2xl md:hidden transition-all duration-500 pb-safe shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]",
+        mobileOpen ? "translate-y-full opacity-0" : "translate-y-0 opacity-100"
       )}>
-        <div className="grid h-full grid-cols-5 items-center">
+        <div className="grid h-full grid-cols-5 items-center px-2">
           <MobileNavLink to="/" icon={Home} label="Home" />
           <MobileNavLink to="/chat" icon={MessageSquare} label="Chat" />
-          <div className="flex flex-col items-center justify-center -translate-y-5">
+          
+          <div className="flex flex-col items-center justify-center -translate-y-6">
             <Link 
               to="/attendance" 
-              className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/40 active:scale-90 transition-transform border-4 border-background"
+              className="group relative flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[0_15px_30px_-10px_rgba(var(--primary-rgb),0.5)] active:scale-90 transition-all border-[6px] border-background"
             >
-              <Camera className="h-6 w-6" />
+              <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Camera className="h-7 w-7 relative z-10" />
             </Link>
           </div>
-          <MobileNavLink to="/calendar" icon={CalendarDays} label="Calendar" />
-          <MobileNavLink to="/settings" icon={User} label="Profile" />
+
+          <MobileNavLink to="/calendar" icon={CalendarDays} label="Plan" />
+          <MobileNavLink to="/settings" icon={User} label="Me" />
         </div>
       </nav>
     </div>
@@ -68,12 +98,13 @@ function MobileNavLink({ to, icon: Icon, label }: { to: string; icon: any; label
     <Link 
       to={to} 
       className={cn(
-        "flex flex-col items-center gap-1 transition-colors",
-        active ? "text-primary" : "text-muted-foreground"
+        "flex flex-col items-center gap-1.5 transition-all duration-300",
+        active ? "text-primary scale-110" : "text-muted-foreground/60 hover:text-muted-foreground"
       )}
     >
-      <Icon className="h-5 w-5" />
-      <span className="text-[10px] font-black uppercase tracking-wider">{label}</span>
+      <Icon className={cn("h-5 w-5", active && "drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.5)]")} />
+      <span className={cn("text-[9px] font-black uppercase tracking-[0.15em]", active ? "opacity-100" : "opacity-60")}>{label}</span>
+      {active && <div className="h-1 w-1 rounded-full bg-primary animate-in zoom-in duration-300" />}
     </Link>
   );
 }

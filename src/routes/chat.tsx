@@ -456,58 +456,59 @@ function ChatPage() {
   );
 
   return (
-    <div className="flex h-[calc(100dvh-6rem)] lg:h-[calc(100dvh-12rem)] font-outfit overflow-hidden gap-0 lg:gap-4 relative animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <div className="flex h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-12rem)] font-outfit overflow-hidden gap-0 lg:gap-4 relative animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {/* Premium Gradient Background Elements */}
       <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-primary/10 dark:bg-primary/20 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
       <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-blue-500/10 dark:bg-indigo-500/20 rounded-full blur-[100px] translate-x-1/3 translate-y-1/3 pointer-events-none" />
 
       {/* Sidebar Channels — Desktop: always visible, Mobile: shown when no room selected */}
-      <aside className={`${activeRoom ? 'hidden lg:flex' : 'flex'} w-full lg:w-80 flex-col gap-3 lg:gap-4 relative z-10 p-2 lg:p-0`}>
+      <aside className={`${activeRoom ? 'hidden lg:flex' : 'flex'} w-full lg:w-80 flex-col gap-3 lg:gap-4 relative z-10 p-4 lg:p-0 bg-background/50 lg:bg-transparent backdrop-blur-md lg:backdrop-blur-none`}>
         {/* User Profile Summary */}
-        <div className="flex items-center gap-4 rounded-3xl border border-zinc-200/50 dark:border-white/5 bg-white/40 dark:bg-zinc-950/50 p-6 backdrop-blur-xl shadow-sm">
+        <div className="flex items-center gap-4 rounded-[2rem] border border-zinc-200/50 dark:border-white/5 bg-white/40 dark:bg-zinc-950/50 p-5 backdrop-blur-xl shadow-sm">
           <div className="relative">
             {profile?.avatar_url ? (
-               <img src={profile.avatar_url} className="h-12 w-12 rounded-2xl object-cover shadow-lg border border-zinc-200 dark:border-white/10" />
+               <img src={profile.avatar_url} className="h-10 w-10 lg:h-12 lg:w-12 rounded-xl lg:rounded-2xl object-cover shadow-lg border border-zinc-200 dark:border-white/10" />
             ) : (
-               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-xl font-bold text-white shadow-lg">
+               <div className="flex h-10 w-10 lg:h-12 lg:w-12 items-center justify-center rounded-xl lg:rounded-2xl bg-primary text-lg font-bold text-white shadow-lg">
                  {profile?.username?.[0]?.toUpperCase()}
                </div>
             )}
-            <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white dark:border-zinc-950 bg-emerald-500 shadow-sm" />
+            <div className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-white dark:border-zinc-950 bg-emerald-500 shadow-sm" />
           </div>
           <div className="flex-1 overflow-hidden">
-            <h2 className="truncate font-black text-zinc-900 dark:text-white leading-tight">{profile?.username}</h2>
+            <h2 className="truncate font-black text-sm lg:text-base text-zinc-900 dark:text-white leading-tight">{profile?.username}</h2>
             <div className="flex items-center gap-1.5 mt-0.5">
                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-               <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Online</p>
+               <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Online</p>
             </div>
           </div>
         </div>
 
         {/* Room List */}
-        <div className="flex flex-col gap-4 rounded-3xl border border-zinc-200/50 dark:border-white/5 bg-white/40 dark:bg-zinc-950/50 p-6 backdrop-blur-xl shadow-sm flex-1">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">Channels</h3>
-            <button onClick={() => setIsCreateRoomOpen(true)} className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 dark:bg-primary/20 text-primary hover:bg-primary hover:text-white transition-colors">
+        <div className="flex flex-col gap-4 rounded-[2rem] border border-zinc-200/50 dark:border-white/5 bg-white/40 dark:bg-zinc-950/50 p-5 backdrop-blur-xl shadow-sm flex-1 overflow-hidden">
+          <div className="flex items-center justify-between px-2">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Channels</h3>
+            <button onClick={() => setIsCreateRoomOpen(true)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 dark:bg-primary/20 text-primary hover:bg-primary hover:text-white transition-colors">
               <Plus size={14} />
             </button>
           </div>
-          <div className="flex flex-col gap-1 overflow-y-auto max-h-[50vh] lg:max-h-[40vh] scrollbar-none -mx-2 px-2">
+          <div className="flex flex-col gap-1.5 overflow-y-auto no-scrollbar px-1">
             {rooms.filter(r => r.name.includes(searchQuery.toLowerCase())).map(room => (
               <button 
                 key={room.id} 
                 onClick={() => setActiveRoom(room)}
-                className={`flex items-center gap-3 rounded-xl px-3 py-3.5 lg:py-2.5 text-sm font-bold transition-all active:scale-[0.98] ${activeRoom?.id === room.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5 hover:text-zinc-900 dark:hover:text-white'}`}
+                className={`flex items-center gap-3 rounded-2xl px-4 py-4 lg:py-3 text-sm font-bold transition-all active:scale-[0.98] ${activeRoom?.id === room.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5 hover:text-zinc-900 dark:hover:text-white'}`}
               >
-                <Hash size={16} />
-                <span>{room.name}</span>
+                <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${activeRoom?.id === room.id ? 'bg-white/20' : 'bg-muted'} shrink-0`}>
+                  <Hash size={16} />
+                </div>
+                <span className="truncate">{room.name}</span>
               </button>
             ))}
           </div>
           {profile?.is_admin && (
             <div className="mt-auto pt-4 border-t border-zinc-200/50 dark:border-white/5">
-               <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500 mb-3">Admin Tools</h3>
-               <button onClick={() => setIsAdminPanelOpen(true)} className="flex w-full items-center gap-3 rounded-xl bg-rose-500/10 px-3 py-2.5 text-sm font-bold text-rose-600 dark:text-rose-500 hover:bg-rose-500 hover:text-white transition-all">
+               <button onClick={() => setIsAdminPanelOpen(true)} className="flex w-full items-center gap-3 rounded-2xl bg-rose-500/10 px-4 py-3.5 text-sm font-black uppercase tracking-wider text-rose-600 dark:text-rose-500 hover:bg-rose-500 hover:text-white transition-all">
                  <Shield size={16} />
                  <span>Management</span>
                </button>
@@ -517,37 +518,28 @@ function ChatPage() {
       </aside>
 
       {/* Main Chat — Desktop: always visible, Mobile: only when room selected */}
-      <div className={`${activeRoom ? 'flex' : 'hidden lg:flex'} flex-1 flex-col overflow-hidden rounded-2xl lg:rounded-3xl border border-zinc-200/50 dark:border-white/5 bg-white/40 dark:bg-zinc-950/50 backdrop-blur-xl shadow-sm relative z-10`}>
+      <div className={`${activeRoom ? 'flex' : 'hidden lg:flex'} flex-1 flex-col overflow-hidden rounded-2xl lg:rounded-[2.5rem] border border-zinc-200/50 dark:border-white/5 bg-white/40 dark:bg-zinc-950/50 backdrop-blur-xl shadow-sm relative z-10`}>
         {activeRoom ? (
           <>
-            <header className="flex items-center justify-between border-b border-zinc-200/50 dark:border-white/5 px-3 py-3 lg:p-6 bg-white/20 dark:bg-white/5 backdrop-blur-md relative z-50">
-              <div className="flex items-center gap-3 lg:gap-4">
+            <header className="flex items-center justify-between border-b border-zinc-200/50 dark:border-white/5 px-4 py-3 lg:p-6 bg-white/40 dark:bg-white/5 backdrop-blur-xl relative z-50">
+              <div className="flex items-center gap-3 lg:gap-4 min-w-0">
                 {/* Mobile back button */}
-                <button onClick={() => setActiveRoom(null)} className="flex lg:hidden h-10 w-10 items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors text-zinc-600 dark:text-zinc-400 shrink-0">
+                <button onClick={() => setActiveRoom(null)} className="flex lg:hidden h-10 w-10 items-center justify-center rounded-2xl bg-muted hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors text-zinc-600 dark:text-zinc-400 shrink-0">
                   <ChevronLeft size={22} />
                 </button>
-                <div className="flex h-10 w-10 lg:h-12 lg:w-12 items-center justify-center rounded-xl lg:rounded-2xl bg-primary/10 dark:bg-primary/20 text-primary shrink-0">
+                <div className="flex h-10 w-10 lg:h-12 lg:w-12 items-center justify-center rounded-2xl bg-primary text-white shrink-0 shadow-lg shadow-primary/20">
                   <Hash size={20} />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-base lg:text-lg font-black text-zinc-900 dark:text-white truncate">{activeRoom.name}</h2>
-                  <p className="text-[10px] lg:text-xs text-zinc-500 truncate">{activeRoom.description}</p>
+                  <h2 className="text-sm lg:text-lg font-black text-zinc-900 dark:text-white truncate uppercase tracking-tight">{activeRoom.name}</h2>
+                  <p className="text-[10px] lg:text-xs text-zinc-500 truncate font-medium">{activeRoom.description || 'Public Channel'}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {isSearchOpen && (
-                  <input 
-                    type="text" 
-                    placeholder="Search messages..." 
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm outline-none w-48 text-zinc-900 dark:text-white"
-                  />
-                )}
-                <button onClick={() => setIsSearchOpen(!isSearchOpen)} className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors text-zinc-500 dark:text-zinc-400"><Search size={20} /></button>
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => setIsSearchOpen(!isSearchOpen)} className="flex h-10 w-10 items-center justify-center rounded-2xl hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors text-zinc-500 dark:text-zinc-400"><Search size={18} /></button>
                 <div className="relative">
-                  <button onClick={() => setIsRoomMenuOpen(!isRoomMenuOpen)} className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${isRoomMenuOpen ? 'bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white' : 'hover:bg-zinc-100 dark:hover:bg-white/5 text-zinc-500 dark:text-zinc-400'}`}>
-                    <MoreVertical size={20} />
+                  <button onClick={() => setIsRoomMenuOpen(!isRoomMenuOpen)} className={`flex h-10 w-10 items-center justify-center rounded-2xl transition-colors ${isRoomMenuOpen ? 'bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white' : 'hover:bg-zinc-100 dark:hover:bg-white/5 text-zinc-500 dark:text-zinc-400'}`}>
+                    <MoreVertical size={18} />
                   </button>
                   {isRoomMenuOpen && (
                     <>
@@ -582,17 +574,16 @@ function ChatPage() {
               </div>
             </header>
 
-            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-3 lg:p-6 scrollbar-none space-y-4 lg:space-y-6">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 lg:p-6 scrollbar-none space-y-6 lg:space-y-8">
               {messages.filter(m => m.content.toLowerCase().includes(searchQuery.toLowerCase())).map((msg, i, arr) => {
                 const isOwn = msg.user_id === profile?.id;
                 const showAvatar = i === 0 || arr[i-1].user_id !== msg.user_id;
                 const canDelete = isOwn || profile?.is_admin || mainProfile?.role === 'Admin';
                 
                 return (
-                  <div key={msg.id} className={`flex gap-2 lg:gap-4 group ${isOwn ? 'flex-row-reverse' : ''}`}>
+                  <div key={msg.id} className={`flex gap-3 lg:gap-4 group ${isOwn ? 'flex-row-reverse' : ''}`}>
                     {showAvatar ? (
-                      /* Avatar - smaller on mobile */
-                      <div className="h-8 w-8 lg:h-10 lg:w-10 shrink-0 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center font-black text-xs overflow-hidden border border-zinc-300 dark:border-white/10 shadow-sm">
+                      <div className="h-8 w-8 lg:h-10 lg:w-10 shrink-0 rounded-xl lg:rounded-2xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center font-black text-xs overflow-hidden border border-zinc-300 dark:border-white/10 shadow-sm mt-1">
                         {msg.profiles?.avatar_url ? (
                           <img src={msg.profiles.avatar_url} alt="Avatar" className="h-full w-full object-cover" />
                         ) : (
@@ -602,33 +593,20 @@ function ChatPage() {
                     ) : (
                       <div className="w-8 lg:w-10 shrink-0" />
                     )}
-                    <div className={`flex max-w-[85%] lg:max-w-[70%] flex-col gap-1 ${isOwn ? 'items-end' : 'items-start'}`}>
+                    <div className={`flex max-w-[88%] lg:max-w-[70%] flex-col gap-1 ${isOwn ? 'items-end' : 'items-start'}`}>
                       {showAvatar && (
-                        <div className={`flex items-center gap-2 px-1 mb-1 text-[10px] font-black uppercase tracking-wider ${isOwn ? 'flex-row-reverse' : ''}`}>
+                        <div className={`flex items-center gap-2 px-1 mb-1 text-[9px] font-black uppercase tracking-widest ${isOwn ? 'flex-row-reverse text-right' : 'text-left'}`}>
                           <span className="text-primary">{msg.profiles?.username || 'User'}</span>
-                          {msg.profiles?.full_name && (
-                            <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20 text-[8px]">
-                              {msg.profiles.full_name}
-                            </span>
-                          )}
-                          <span className="text-zinc-400 dark:text-zinc-600">{format(new Date(msg.created_at), 'h:mm a')}</span>
+                          <span className="text-zinc-400 dark:text-zinc-600 font-medium lowercase tracking-normal">{format(new Date(msg.created_at), 'h:mm a')}</span>
                         </div>
                       )}
                       <div className={`flex items-center gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}>
-                        {canDelete && (
-                          <button onClick={async () => {
-                            await chatSupabase.from('messages').delete().eq('id', msg.id);
-                            setMessages(prev => prev.filter(m => m.id !== msg.id));
-                          }} className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg">
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                        <div className={`rounded-2xl px-4 py-3 text-sm font-medium shadow-sm backdrop-blur-md ${isOwn ? 'bg-primary text-white rounded-tr-sm' : 'bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/5 text-zinc-900 dark:text-zinc-200 rounded-tl-sm'} ${msg.type !== 'text' ? 'p-1.5' : ''}`}>
+                        <div className={`rounded-2xl lg:rounded-3xl px-4 py-3 text-sm font-medium shadow-sm backdrop-blur-md transition-all ${isOwn ? 'bg-primary text-white rounded-tr-sm' : 'bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/5 text-zinc-900 dark:text-zinc-200 rounded-tl-sm'} ${msg.type !== 'text' ? 'p-1.5' : ''}`}>
                            {msg.type === 'text' && <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>}
                            {msg.type === 'image' && (
                              <div className="relative group/media inline-block">
-                               <img src={msg.file_url} className="rounded-xl max-w-[240px] lg:max-w-sm w-full shadow-sm" />
-                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/media:opacity-100 transition-opacity flex items-center justify-center rounded-xl backdrop-blur-sm pointer-events-none">
+                               <img src={msg.file_url} className="rounded-xl lg:rounded-2xl max-w-[240px] lg:max-w-sm w-full shadow-sm" />
+                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/media:opacity-100 transition-opacity flex items-center justify-center rounded-xl lg:rounded-2xl backdrop-blur-sm pointer-events-none">
                                   <button onClick={(e) => { e.stopPropagation(); const a = document.createElement('a'); a.href = msg.file_url!; a.download = msg.content || 'image'; a.target='_blank'; a.click(); }} className="p-3 bg-white/20 hover:bg-white/40 text-white rounded-full pointer-events-auto transition-colors shadow-xl backdrop-blur-md">
                                     <Download size={24} />
                                   </button>
@@ -637,30 +615,33 @@ function ChatPage() {
                            )}
                            {msg.type === 'video' && (
                              <div className="relative group/media inline-block">
-                               <video controls src={msg.file_url} className="rounded-xl max-w-[240px] lg:max-w-sm w-full shadow-sm" />
-                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/media:opacity-100 transition-opacity flex items-start justify-end p-2 rounded-xl pointer-events-none">
-                                  <button onClick={(e) => { e.stopPropagation(); const a = document.createElement('a'); a.href = msg.file_url!; a.download = msg.content || 'video'; a.target='_blank'; a.click(); }} className="p-2 bg-black/50 hover:bg-black/80 text-white rounded-lg pointer-events-auto transition-colors shadow-xl backdrop-blur-md">
-                                    <Download size={16} />
-                                  </button>
-                               </div>
+                               <video controls src={msg.file_url} className="rounded-xl lg:rounded-2xl max-w-[240px] lg:max-w-sm w-full shadow-sm" />
                              </div>
                            )}
                            {msg.type === 'audio' && (
-                             <div className={`rounded-2xl p-1 pr-2 flex items-center gap-2 ${isOwn ? 'bg-black/10 shadow-inner border border-black/5' : 'bg-zinc-100 dark:bg-black/20 shadow-inner border border-zinc-200/50 dark:border-white/5'}`}>
+                             <div className={`rounded-2xl p-1 pr-2 flex items-center gap-2 ${isOwn ? 'bg-black/10' : 'bg-zinc-100 dark:bg-black/20'}`}>
                                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isOwn ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                                  <Mic size={14} />
                                </div>
-                               <audio controls src={msg.file_url} className={`h-8 w-48 ${isOwn ? 'opacity-90 contrast-125' : 'opacity-80 dark:opacity-60 grayscale'}`} />
+                               <audio controls src={msg.file_url} className="h-8 w-40 lg:w-48" />
                              </div>
                            )}
                            {msg.type === 'file' && (
                              <a href={msg.file_url} target="_blank" className={`flex items-center gap-3 p-3 rounded-xl no-underline transition-colors ${isOwn ? 'bg-black/20 text-white hover:bg-black/30' : 'bg-zinc-100 dark:bg-black/20 text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-black/40'}`}>
                                <div className="bg-white/50 dark:bg-white/10 p-2 rounded-lg"><FileText size={16} /></div>
-                               <span className="truncate max-w-[150px] font-bold">{msg.content}</span>
+                               <span className="truncate max-w-[120px] lg:max-w-[150px] font-bold text-xs">{msg.content}</span>
                                <Download size={14} className="opacity-50" />
                              </a>
                            )}
                         </div>
+                        {canDelete && (
+                          <button onClick={async () => {
+                            await chatSupabase.from('messages').delete().eq('id', msg.id);
+                            setMessages(prev => prev.filter(m => m.id !== msg.id));
+                          }} className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl">
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -669,36 +650,30 @@ function ChatPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            <footer className="border-t border-zinc-200/50 dark:border-white/5 p-2 lg:p-6 bg-white/20 dark:bg-white/5 backdrop-blur-md" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0.5rem))' }}>
-              <div className="flex items-center gap-2 lg:gap-4 bg-white dark:bg-white/5 rounded-2xl p-1.5 lg:p-2 border border-zinc-200 dark:border-white/5 focus-within:border-primary/50 transition-colors shadow-sm">
+            <footer className="border-t border-zinc-200/50 dark:border-white/5 p-4 lg:p-6 bg-white/40 dark:bg-white/5 backdrop-blur-xl" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))' }}>
+              <div className="flex items-center gap-2 lg:gap-4 bg-white dark:bg-zinc-900 rounded-[2rem] p-1.5 lg:p-2 border border-zinc-200 dark:border-white/5 focus-within:border-primary/50 transition-all shadow-lg">
                 <div className="flex items-center gap-1">
-                  <label className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-white/10 transition-colors cursor-pointer text-zinc-500 dark:text-zinc-400 relative">
+                  <label className="flex h-11 w-11 items-center justify-center rounded-[1.25rem] hover:bg-zinc-100 dark:hover:bg-white/10 transition-colors cursor-pointer text-zinc-500 dark:text-zinc-400 relative">
                     <ImageIcon size={20} />
                     <input type="file" hidden accept="image/*,video/*,audio/*,.pdf" onChange={handleFileUpload} />
                     {uploadProgress > 0 && <div className="absolute inset-0 bg-primary/20 rounded-xl animate-pulse" />}
                   </label>
-                  <button onClick={isRecording ? stopRecording : startRecording} className={`flex h-10 w-10 items-center justify-center rounded-xl hover:bg-zinc-100 dark:hover:bg-white/10 transition-colors relative ${isRecording ? 'text-rose-500' : 'text-zinc-500 dark:text-zinc-400'}`}>
-                    {isRecording && <div className="absolute inset-0 rounded-xl border-2 border-rose-500 animate-ping opacity-50" />}
-                    {isRecording && <div className="absolute inset-2 rounded-xl bg-rose-500 animate-pulse opacity-20" />}
+                  <button onClick={isRecording ? stopRecording : startRecording} className={`flex h-11 w-11 items-center justify-center rounded-[1.25rem] hover:bg-zinc-100 dark:hover:bg-white/10 transition-colors relative ${isRecording ? 'text-rose-500' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                    {isRecording && <div className="absolute inset-0 rounded-2xl border-2 border-rose-500 animate-ping opacity-50" />}
                     {isRecording ? <Square size={20} className="relative z-10" /> : <Mic size={20} />}
                   </button>
                 </div>
                 <form onSubmit={(e) => { e.preventDefault(); if(input.trim()) sendMessage(input); }} className="flex flex-1 items-center gap-2 lg:gap-4">
-                  {isRecording ? (
-                    <div className="flex-1 px-4 py-2 text-rose-500 font-bold text-sm animate-pulse flex items-center gap-2">
-                       <Mic size={14} /> Recording Audio... Click square to stop and send.
-                    </div>
-                  ) : (
-                    <input 
-                      type="text" 
-                      placeholder={`Message #${activeRoom.name}`}
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      className="flex-1 bg-transparent border-none outline-none text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
-                    />
-                  )}
-                  <button type="submit" disabled={!input.trim()} className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white shadow-lg shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all">
-                    <Send size={18} />
+                  <input 
+                    type="text" 
+                    placeholder={isRecording ? "Recording..." : `Message #${activeRoom.name}`}
+                    value={input}
+                    disabled={isRecording}
+                    onChange={(e) => setInput(e.target.value)}
+                    className="flex-1 bg-transparent border-none outline-none text-sm font-medium text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 px-2"
+                  />
+                  <button type="submit" disabled={!input.trim()} className="flex h-11 w-11 items-center justify-center rounded-[1.25rem] bg-primary text-white shadow-lg shadow-primary/30 disabled:opacity-50 active:scale-90 transition-all shrink-0">
+                    <Send size={20} />
                   </button>
                 </form>
               </div>

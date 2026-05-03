@@ -7,6 +7,7 @@ import { StatusBadge, LeaveStatusBadge } from "@/components/common/StatusBadge";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { sendPushNotification } from "@/lib/push";
 
 export const Route = createFileRoute("/team")({
   validateSearch: (search: Record<string, unknown>) => {
@@ -79,6 +80,15 @@ function TeamPage() {
     if (!error) {
       toast.success(`Leave ${status}`);
       setRequests(rs => rs.map(r => r.id === id ? { ...r, status } : r));
+      
+      // Notify the user
+      const request = requests.find(r => r.id === id);
+      if (request?.user_id) {
+        sendPushNotification(request.user_id, {
+          title: `Leave ${status}`,
+          body: `Your leave request for ${request.from_date} has been ${status.toLowerCase()}.`
+        });
+      }
     } else toast.error(error.message);
   };
 
@@ -101,7 +111,7 @@ function TeamPage() {
           <div className="border-b p-5">
             <h2 className="text-lg font-semibold">Today's Attendance</h2>
           </div>
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/40 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 <tr>
@@ -114,7 +124,7 @@ function TeamPage() {
               </thead>
               <tbody>
                 {loading ? (
-                   <tr><td colSpan={4} className="py-10 text-center text-muted-foreground">Loading team...</td></tr>
+                   <tr><td colSpan={5} className="py-10 text-center text-muted-foreground">Loading team...</td></tr>
                 ) : members.filter(m => !q || m.name.toLowerCase().includes(q.toLowerCase())).map((m) => (
                   <tr key={m.id} className="border-t transition-colors hover:bg-accent/30">
                     <td className="px-5 py-3">
@@ -131,6 +141,36 @@ function TeamPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile View */}
+          <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
+            {loading ? (
+              <div className="py-10 text-center text-muted-foreground">Loading team...</div>
+            ) : members.filter(m => !q || m.name.toLowerCase().includes(q.toLowerCase())).map((m) => (
+              <div key={m.id} className="rounded-2xl border border-border/50 bg-background/50 p-4 space-y-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Avatar2D name={m.name} size={40} src={m.avatar_url} />
+                    <div>
+                      <h4 className="font-bold text-sm">{m.name}</h4>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{m.role}</p>
+                    </div>
+                  </div>
+                  <StatusBadge status={m.status} />
+                </div>
+                <div className="grid grid-cols-2 gap-4 border-t border-border/30 pt-3">
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Check-In</p>
+                    <p className="text-xs font-mono font-bold text-success mt-0.5">{m.checkIn}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Check-Out</p>
+                    <p className="text-xs font-mono font-bold text-warning mt-0.5">{m.checkOut}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

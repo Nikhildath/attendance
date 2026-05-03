@@ -8,6 +8,8 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
+import { requestNotificationPermission } from "@/lib/push";
+import { toast } from "sonner";
 
 type NotificationItem = {
   id: string;
@@ -382,7 +384,13 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setNotificationOpen((value) => !value)}
+              onClick={async () => {
+                if ('Notification' in window && Notification.permission !== 'granted') {
+                   const granted = await requestNotificationPermission();
+                   if (granted) toast.success("Real-time notifications enabled!");
+                }
+                setNotificationOpen((value) => !value);
+              }}
               className="h-9 w-9 rounded-full hover:bg-background hover:shadow-sm relative"
             >
               <Bell className="h-4 w-4" />

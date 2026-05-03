@@ -277,7 +277,7 @@ function PayrollPage() {
             <Download className="h-3.5 w-3.5" /> Export CSV
           </button>
         </div>
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               <tr>
@@ -296,9 +296,9 @@ function PayrollPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={10} className="py-20 text-center text-muted-foreground text-xs uppercase tracking-widest">Loading Records...</td></tr>
+                <tr><td colSpan={11} className="py-20 text-center text-muted-foreground text-xs uppercase tracking-widest">Loading Records...</td></tr>
               ) : payslips.length === 0 ? (
-                <tr><td colSpan={10} className="py-20 text-center text-muted-foreground text-xs uppercase tracking-widest">No Records Found</td></tr>
+                <tr><td colSpan={11} className="py-20 text-center text-muted-foreground text-xs uppercase tracking-widest">No Records Found</td></tr>
               ) : payslips.map((p) => (
                 <tr key={p.id} className="border-t hover:bg-accent/20 transition-colors">
                   <td className="px-5 py-3 font-medium text-primary">{p.profiles?.name}</td>
@@ -370,6 +370,62 @@ function PayrollPage() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View */}
+        <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
+          {loading ? (
+            <div className="py-20 text-center text-muted-foreground text-xs uppercase tracking-widest">Loading Records...</div>
+          ) : payslips.length === 0 ? (
+            <div className="py-20 text-center text-muted-foreground text-xs uppercase tracking-widest">No Records Found</div>
+          ) : payslips.map((p) => (
+            <div key={p.id} className="rounded-2xl border border-border/50 bg-background/50 p-4 space-y-4 shadow-sm relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-black text-sm text-primary">{p.profiles?.name}</h4>
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{p.month}</p>
+                </div>
+                <span className={cn("inline-flex rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest",
+                  p.status === "Paid" ? "border-success/40 bg-success/10 text-success" :
+                  "border-warning/40 bg-warning/15 text-warning"
+                )}>
+                  {p.status}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 border-t border-border/30 pt-4">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Gross Earnings</p>
+                  <p className="text-sm font-bold text-success">
+                    {currency} {(Number(p.basic_pay) + Number(p.hra) + Number(p.allowances) + Number(p.bonus) + Number(p.overtime_pay || 0)).toLocaleString()}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Total Fines</p>
+                  <p className="text-sm font-bold text-destructive">
+                    −{currency} {Number(p.fines).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between bg-primary/5 -mx-4 -mb-4 p-4 mt-2">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-primary/60">Net Payable</p>
+                  <p className="text-lg font-black text-primary leading-tight">
+                    {currency} {Number(p.net_payable).toLocaleString()}
+                  </p>
+                </div>
+                {isAdmin && (
+                  <button 
+                    onClick={() => startEdit(p)} 
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white shadow-lg active:scale-90 transition-transform"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

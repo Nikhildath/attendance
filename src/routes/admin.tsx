@@ -273,12 +273,14 @@ function AdminPage() {
       </div>
 
       <Tabs defaultValue="users" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" /> Users</TabsTrigger>
-          <TabsTrigger value="branches" className="gap-2"><Building2 className="h-4 w-4" /> Branches</TabsTrigger>
-          <TabsTrigger value="holidays" className="gap-2"><PartyPopper className="h-4 w-4" /> Holidays</TabsTrigger>
-          <TabsTrigger value="announcements" className="gap-2"><Plus className="h-4 w-4" /> Announcements</TabsTrigger>
-          <TabsTrigger value="settings" className="gap-2"><SettingsIcon className="h-4 w-4" /> Settings</TabsTrigger>
+        <TabsList className="mb-4 h-auto w-full bg-muted/40 backdrop-blur-sm rounded-2xl border border-border/50 p-1">
+          <div className="flex w-full overflow-x-auto no-scrollbar gap-1 p-0.5">
+            <TabsTrigger value="users" className="gap-2 shrink-0"><Users className="h-4 w-4" /> Users</TabsTrigger>
+            <TabsTrigger value="branches" className="gap-2 shrink-0"><Building2 className="h-4 w-4" /> Branches</TabsTrigger>
+            <TabsTrigger value="holidays" className="gap-2 shrink-0"><PartyPopper className="h-4 w-4" /> Holidays</TabsTrigger>
+            <TabsTrigger value="announcements" className="gap-2 shrink-0"><Plus className="h-4 w-4" /> Announcements</TabsTrigger>
+            <TabsTrigger value="settings" className="gap-2 shrink-0"><SettingsIcon className="h-4 w-4" /> Settings</TabsTrigger>
+          </div>
         </TabsList>
 
         <TabsContent value="users">
@@ -328,7 +330,7 @@ function AdminPage() {
                 </DialogContent>
               </Dialog>
             </div>
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted/40 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <tr>
@@ -415,6 +417,68 @@ function AdminPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile User List */}
+            <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
+              {users.filter(u => u.name?.toLowerCase().includes(q.toLowerCase())).map(u => (
+                <div key={u.id} className="rounded-2xl border border-border/50 bg-background/50 p-4 space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Avatar2D name={u.name} size={40} src={u.avatar_url} />
+                      <div>
+                        <h4 className="font-bold text-sm">{u.name}</h4>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{u.role}</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => removeUser(u.id)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase text-muted-foreground">Branch</Label>
+                      <select 
+                        className="w-full h-8 rounded-lg border bg-background px-2 text-[10px]" 
+                        value={u.branch_id ?? ""} 
+                        onChange={e => updateProfile(u.id, { branch_id: e.target.value || null })}
+                      >
+                        <option value="">No Branch</option>
+                        {branches.map(b => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase text-muted-foreground">Department</Label>
+                      <Input 
+                        className="h-8 text-[10px]" 
+                        value={drafts[u.id]?.dept ?? u.dept ?? ""} 
+                        onChange={e => setDraft(u.id, 'dept', e.target.value)}
+                        onBlur={() => flushDraft(u.id)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase text-muted-foreground">Password</Label>
+                      <Input 
+                        className="h-8 text-[10px]" 
+                        value={drafts[u.id]?.password ?? u.password ?? ""} 
+                        onChange={e => setDraft(u.id, 'password', e.target.value)}
+                        onBlur={() => flushDraft(u.id)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] uppercase text-muted-foreground">Joining Date</Label>
+                      <Input 
+                        type="date"
+                        className="h-8 text-[10px]" 
+                        value={drafts[u.id]?.joining_date ?? u.joining_date ?? ""} 
+                        onChange={e => setDraft(u.id, 'joining_date', e.target.value)}
+                        onBlur={() => flushDraft(u.id)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </TabsContent>
